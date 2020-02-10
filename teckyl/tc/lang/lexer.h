@@ -199,16 +199,34 @@ struct SharedParserData {
       size_t pos,
       int* kind,
       size_t* start,
-      size_t* len) {
+      size_t* len,
+      size_t* line,
+      size_t* ch) {
     // skip whitespace
-    while (pos < str.size() && isspace(str[pos]))
+    while (pos < str.size() && isspace(str[pos])) {
+      if(str[pos] == '\n') {
+	(*line)++;
+	*ch = 1;
+      } else {
+	(*ch)++;
+      }
+
       pos++;
+    }
     // skip comments
     if (pos < str.size() && str[pos] == '#') {
-      while (pos < str.size() && str[pos] != '\n')
+      while (pos < str.size() && str[pos] != '\n') {
         pos++;
+	(*ch)++;
+      }
+
+      if(pos < str.size() && str[pos] == '\n') {
+	*ch = 1;
+	(*line)++;
+      }
+
       // tail call, handle whitespace and more comments
-      return match(str, pos, kind, start, len);
+      return match(str, pos, kind, start, len, line, ch);
     }
     *start = pos;
     if (pos == str.size()) {
@@ -315,8 +333,17 @@ struct SourceRange {
   SourceRange(
       const std::shared_ptr<std::string>& file_,
       size_t start_,
-      size_t end_)
-      : file_(file_), start_(start_), end_(end_) {}
+      size_t end_,
+      size_t start_line_,
+      size_t start_ch_,
+      size_t end_line_,
+      size_t end_ch_)
+    : file_(file_), start_(start_), end_(end_),
+      start_line_(start_line_),
+      start_ch_(start_ch_),
+      end_line_(end_line_),
+      end_ch_(end_ch_) {}
+
   const std::string text() const {
     return file().substr(start(), end() - start());
   }
@@ -353,10 +380,28 @@ struct SourceRange {
     return end_;
   }
 
+  size_t startLine() const {
+    return start_line_;
+  }
+  size_t endLine() const {
+    return end_line_;
+  }
+
+  size_t startCharacter() const {
+    return start_ch_;
+  }
+  size_t endCharacter() const {
+    return end_ch_;
+  }
+
  private:
   std::shared_ptr<std::string> file_;
   size_t start_;
   size_t end_;
+  size_t start_line_;
+  size_t start_ch_;
+  size_t end_line_;
+  size_t end_ch_;
 };
 
 struct Token {
@@ -383,7 +428,9 @@ struct Lexer {
   Lexer(const std::string& str)
       : file(std::make_shared<std::string>(str)),
         pos(0),
-        cur_(TK_EOF, SourceRange(file, 0, 0)),
+	line(1),
+	ch(1),
+        cur_(TK_EOF, SourceRange(file, 0, 0, 0, 0, 0, 0)),
         shared(sharedParserData()) {
     next();
   }
@@ -428,17 +475,25 @@ struct Lexer {
     int kind = -1;
     size_t start = 0;
     size_t length = 0;
+    size_t start_line = line;
+    size_t start_ch = ch;
+    
     assert(file);
-    if (!shared.match(*file, pos, &kind, &start, &length)) {
+    if (!shared.match(*file, pos, &kind, &start, &length, &line, &ch)) {
       reportError(
           "a valid token",
-          Token((*file)[start], SourceRange(file, start, start + 1)));
+          Token((*file)[start], SourceRange(file, start, start + 1,
+					    start_line, start_ch,
+					    start_line, start_ch)));
     }
-    auto t = Token(kind, SourceRange(file, start, start + length));
+    auto t = Token(kind, SourceRange(file, start, start + length,
+				     start_line, start_ch, line, ch));
     pos = start + length;
     return t;
   }
   size_t pos;
+  size_t line;
+  size_t ch;
   Token cur_;
   std::unique_ptr<Token> lookahead_;
   SharedParserData& shared;

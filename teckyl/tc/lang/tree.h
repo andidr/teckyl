@@ -137,9 +137,42 @@ static SourceRange mergeRanges(SourceRange c, const TreeList& others) {
   for (auto t : others) {
     if (t->isAtom())
       continue;
-    size_t s = std::min(c.start(), t->range().start());
-    size_t e = std::max(c.end(), t->range().end());
-    c = SourceRange(c.file_ptr(), s, e);
+
+    auto trange = t->range();
+
+    size_t s = std::min(c.start(), trange.start());
+    size_t e = std::max(c.end(), trange.end());
+
+    size_t start_line;
+    size_t start_ch;
+    size_t end_line;
+    size_t end_ch;
+
+    if(trange.startLine() < c.startLine()) {
+      start_line = trange.startLine();
+      start_ch = trange.startCharacter();
+    } else {
+      start_line = c.startLine();
+
+      if(trange.startCharacter() < c.startCharacter())
+	start_ch = trange.startCharacter();
+      else
+	start_ch = c.startCharacter();
+    }
+
+    if(trange.endLine() > c.endLine()) {
+      end_line = trange.endLine();
+      end_ch = trange.endCharacter();
+    } else {
+      end_line = c.endLine();
+      
+      if(trange.endCharacter() > c.endCharacter())
+	end_ch = trange.endCharacter();
+      else
+	end_ch = c.endCharacter();
+    }
+
+    c = SourceRange(c.file_ptr(), s, e, start_line, start_ch, end_line, end_ch);
   }
   return c;
 }
