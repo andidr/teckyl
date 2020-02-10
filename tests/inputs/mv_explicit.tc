@@ -1,0 +1,4 @@
+def mv(float(M,K) A, float(K) x) -> (float(M) C)
+{
+  C(i) +=! A(i,k) * x(k) where i in 0:M, k in 0:K
+}
