@@ -18,21 +18,16 @@ public:
 
 class SourceException : public Exception {
 public:
-  SourceException(const mlir::FileLineColLoc& l,
-		  const std::string &msg) :
-    Exception(buildMessage(l, msg))
-  { }
+  SourceException(const mlir::FileLineColLoc &l, const std::string &msg)
+      : Exception(buildMessage(l, msg)) {}
 
 private:
-  static std::string buildMessage(const mlir::FileLineColLoc& l,
-				  const std::string &msg)
-  {
+  static std::string buildMessage(const mlir::FileLineColLoc &l,
+                                  const std::string &msg) {
     std::stringstream ss;
 
-    ss << l.getFilename().str() << ":"
-       << l.getLine() << ":"
-       << l.getColumn() << ": "
-       << msg;
+    ss << l.getFilename().str() << ":" << l.getLine() << ":" << l.getColumn()
+       << ": " << msg;
 
     return ss.str();
   }
