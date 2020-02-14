@@ -111,6 +111,9 @@ struct TreeView {
   operator TreeRef() const {
     return tree_;
   }
+  TreeId id() const {
+    return tree_->id();
+  }
 
  protected:
   TreeRef subtree(size_t i) const {

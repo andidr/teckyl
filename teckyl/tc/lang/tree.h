@@ -47,8 +47,22 @@ using TreeList = std::vector<TreeRef>;
 
 static const TreeList empty_trees = {};
 
+class TreeId {
+public:
+  TreeId(int id) : id(id) {}
+  bool operator<(const TreeId &other) const { return this->id < other.id; }
+
+  // FIXME: This is not thread safe
+  static TreeId generate() { return TreeId(curr_id++); }
+
+protected:
+  unsigned int id;
+
+  static unsigned int curr_id;
+};
+
 struct Tree : std::enable_shared_from_this<Tree> {
-  Tree(int kind_) : kind_(kind_) {}
+  Tree(int kind_) : kind_(kind_), id_(TreeId::generate()) {}
   int kind() const {
     return kind_;
   }
@@ -90,7 +104,12 @@ struct Tree : std::enable_shared_from_this<Tree> {
     }
   }
   int kind_;
+  TreeId id_;
   virtual ~Tree() {}
+
+  TreeId id() {
+    return id_;
+  }
 };
 
 struct String : public Tree {

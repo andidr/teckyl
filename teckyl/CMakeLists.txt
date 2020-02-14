@@ -5,6 +5,7 @@ set(LLVM_LINK_COMPONENTS Support)
 
 add_llvm_executable(teckyl
   tc/lang/lexer.h
+  tc/lang/tree.cpp
   tc/lang/tree.h
   tc/lang/lexer.cc
   tc/lang/parser.h
