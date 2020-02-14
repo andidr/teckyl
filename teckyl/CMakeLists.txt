@@ -15,6 +15,7 @@ add_llvm_executable(teckyl
   tc/lang/sema.h
   tc/utils/compiler_options.h
   Exception.h
+  lang_extras.h
   MLIRGen.cpp
   MLIRGen.h
   main.cc)

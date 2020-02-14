@@ -1,4 +1,5 @@
 #include "MLIRGen.h"
+#include "lang_extras.h"
 
 #include <llvm/ADT/ScopedHashTable.h>
 #include <mlir/Dialect/AffineOps/AffineOps.h>
@@ -14,11 +15,6 @@
 #include <set>
 
 namespace teckyl {
-
-using IteratorBoundsMap =
-    std::map<std::string, std::pair<mlir::Value, mlir::Value>>;
-using IteratorRangeMap = std::map<std::string, lang::RangeConstraint>;
-
 static const char *getTypeAsString(mlir::Type t) {
   if (t.isF16())
     return "f16";
@@ -40,78 +36,9 @@ static const char *getTypeAsString(mlir::Type t) {
   throw mlirgen::Exception("Cannot determine name for type");
 }
 
-static bool inline isSignedIntType(int kind) {
-  switch (kind) {
-  case lang::TK_INT8:
-  case lang::TK_INT16:
-  case lang::TK_INT32:
-  case lang::TK_INT64:
-    return true;
-
-  default:
-    return false;
-  }
-}
-
-static inline bool isUnsignedIntType(int kind) {
-  switch (kind) {
-  case lang::TK_UINT8:
-  case lang::TK_UINT16:
-  case lang::TK_UINT32:
-  case lang::TK_UINT64:
-    return true;
-
-  default:
-    return false;
-  }
-}
-
-static inline bool isIntType(int kind) {
-  return isSignedIntType(kind) || isUnsignedIntType(kind);
-}
-
-static unsigned getIntBits(int kind) {
-  switch (kind) {
-  case lang::TK_INT8:
-  case lang::TK_UINT8:
-    return 8;
-  case lang::TK_INT16:
-  case lang::TK_UINT16:
-    return 16;
-  case lang::TK_INT32:
-  case lang::TK_UINT32:
-    return 32;
-  case lang::TK_INT64:
-  case lang::TK_UINT64:
-    return 64;
-
-  default:
-    throw mlirgen::Exception("Unexpected kind");
-  }
-}
-
-static inline bool isFloatType(int kind) {
-  switch (kind) {
-  case lang::TK_FLOAT:
-  case lang::TK_FLOAT16:
-  case lang::TK_FLOAT32:
-  case lang::TK_FLOAT64:
-    return true;
-
-  default:
-    return false;
-  }
-}
-
-// Resursively maps the function `fn` to `tree` and all of its
-// descendants in preorder.
-static void mapRecursive(const lang::TreeRef &tree,
-                         std::function<void(const lang::TreeRef &)> fn) {
-  fn(tree);
-
-  for (auto e : tree->trees())
-    mapRecursive(e, fn);
-}
+using IteratorBoundsMap =
+    std::map<std::string, std::pair<mlir::Value, mlir::Value>>;
+using IteratorRangeMap = std::map<std::string, lang::RangeConstraint>;
 
 // Collects the set of iterators of a comprehensions by listing all
 // identifiers and retaining only those that are not in the symbol
