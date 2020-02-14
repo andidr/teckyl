@@ -11,9 +11,6 @@
 
 #include <tc/lang/sema.h>
 
-#include <map>
-#include <set>
-
 namespace teckyl {
 static const char *getTypeAsString(mlir::Type t) {
   if (t.isF16())
@@ -47,7 +44,6 @@ static inline bool isMLIRIntType(mlir::Type &t) {
 
 using IteratorBoundsMap =
     std::map<std::string, std::pair<mlir::Value, mlir::Value>>;
-using IteratorRangeMap = std::map<std::string, lang::RangeConstraint>;
 
 // Collects the set of iterators of a comprehensions by listing all
 // identifiers and retaining only those that are not in the symbol
@@ -67,47 +63,6 @@ static std::set<std::string> collectIterators(
   });
 
   return iterators;
-}
-
-// Collects all range constraints specified in `where` clauses of the
-// comprehension c
-static IteratorRangeMap
-collectExplicitIteratorBounds(const lang::Comprehension &c) {
-  IteratorRangeMap bounds;
-
-  for (auto where : c.whereClauses()) {
-    if (where->kind() != lang::TK_RANGE_CONSTRAINT)
-      continue;
-
-    auto range = lang::RangeConstraint(where);
-    std::string name = range.ident().name();
-
-    bounds.insert({name, range});
-  }
-
-  return std::move(bounds);
-}
-
-// Collects the set of parameters from the signature of `def` that
-// define the sizes of dimensions. for example, for the signature
-//
-//   def foo(float(M, N) A, float(K) x)
-//
-// The function would return a set composed of M, N and K.
-static std::set<std::string> collectDimSizeParams(const lang::Def &def) {
-  std::set<std::string> sizeParams;
-
-  for (const lang::Param &param : def.params()) {
-    for (const lang::TreeRef &dim : param.tensorType().dims()) {
-      if (dim->kind() == lang::TK_IDENT) {
-        lang::Ident ident(dim);
-
-        sizeParams.insert(ident.name());
-      }
-    }
-  }
-
-  return sizeParams;
 }
 
 class MLIRGenBase {
