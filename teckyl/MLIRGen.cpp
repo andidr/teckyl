@@ -36,6 +36,15 @@ static const char *getTypeAsString(mlir::Type t) {
   throw mlirgen::Exception("Cannot determine name for type");
 }
 
+static inline bool isMLIRFloatType(mlir::Type &t) {
+  return t.isF16() || t.isF32() || t.isF64();
+}
+
+static inline bool isMLIRIntType(mlir::Type &t) {
+  return t.isInteger(8) || t.isInteger(16) || t.isInteger(32) ||
+         t.isInteger(64);
+}
+
 using IteratorBoundsMap =
     std::map<std::string, std::pair<mlir::Value, mlir::Value>>;
 using IteratorRangeMap = std::map<std::string, lang::RangeConstraint>;
@@ -101,132 +110,19 @@ static std::set<std::string> collectDimSizeParams(const lang::Def &def) {
   return sizeParams;
 }
 
-class MLIRGenImpl {
+class MLIRGenBase {
 public:
-  MLIRGenImpl(mlir::MLIRContext &context,
+  MLIRGenBase(mlir::MLIRContext *context,
               const std::string &filename = "unknown file")
-      : builder(&context), filename(filename) {}
+      : builder(context), filename(filename){};
 
-  // Builds a FuncOp for a definition `def`
-  mlir::FuncOp buildFunction(const std::string &name, const lang::Def &def) {
-    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> var_scope(symTab);
-    std::vector<mlir::Type> argTypes;
+  virtual ~MLIRGenBase() = default;
 
-    // Add parameters for symbolic tensor dimensions
-    std::set<std::string> sizeParams = collectDimSizeParams(def);
+  mlir::OpBuilder &getBuilder() { return builder; }
 
-    for (size_t i = 0; i < sizeParams.size(); i++)
-      argTypes.push_back(builder.getIndexType());
-
-    // Add tensor parameters
-    for (lang::Param param : def.params()) {
-      lang::TensorType tensorType = param.tensorType();
-      mlir::Type mlirTensorType = getTensorType(tensorType);
-      argTypes.push_back(mlirTensorType);
-    }
-
-    // Add output parameters
-    std::map<std::string, size_t> outputRanks = collectOutputRanks(def);
-
-    for (lang::Param param : def.returns()) {
-      lang::TensorType tcTensorType = param.tensorType();
-      std::string name = param.ident().name();
-
-      if (param.typeIsInferred()) {
-        std::stringstream ss;
-
-        ss << "Type for output tensor " << name << " not specified";
-
-        throw mlirgen::SourceException(loc(param.range()), ss.str());
-      }
-
-      // Check that used dimensions correspond to the declared
-      // dimensions
-      if (outputRanks.find(name) != outputRanks.end()) {
-        size_t declaredDims = tcTensorType.dims().size();
-
-        if (declaredDims != outputRanks[name]) {
-          std::stringstream ss;
-
-          ss << "Output tensor " << name << " has been declared with "
-             << declaredDims << " dimensions, "
-             << "but is indexed with " << outputRanks[name] << " "
-             << "dimensions";
-
-          throw mlirgen::Exception(ss.str());
-        }
-      }
-
-      mlir::Type mlirTensorType =
-          mlir::MemRefType::get(std::vector<int64_t>(outputRanks[name], -1),
-                                getScalarType(tcTensorType.scalarType()));
-
-      argTypes.push_back(mlirTensorType);
-    }
-
-    mlir::FunctionType func_type =
-        builder.getFunctionType(argTypes, llvm::None);
-
-    mlir::FuncOp funcOp =
-        mlir::FuncOp::create(loc(def.range()), name, func_type);
-
-    mlir::FuncOp function(funcOp);
-    mlir::Block &entryBlock = *function.addEntryBlock();
-
-    // Add all arguments to symbol table
-    {
-      size_t i = 0;
-
-      // Add parameters for symbolic tensor dimensions to symbol table
-      for (const std::string &sizeParam : sizeParams)
-        symTab.insert(sizeParam, funcOp.getArgument(i++));
-
-      // Add input tensors
-      for (lang::Param param : def.params()) {
-        mlir::BlockArgument arg = funcOp.getArgument(i++);
-        symTab.insert(param.ident().name(), arg);
-      }
-
-      // Add outputs
-      for (lang::Param param : def.returns()) {
-        mlir::BlockArgument arg = funcOp.getArgument(i++);
-        symTab.insert(param.ident().name(), arg);
-      }
-    }
-
-    builder.setInsertionPointToStart(&entryBlock);
-
-    for (const lang::Comprehension &comprehension : def.statements())
-      buildComprehension(comprehension);
-
-    builder.create<mlir::ReturnOp>(loc(def.range()));
-
-    return function;
-  }
-
-private:
+protected:
   mlir::OpBuilder builder;
-  llvm::ScopedHashTable<llvm::StringRef, mlir::Value> symTab;
   std::string filename;
-
-  // Translates a TC source location to an MLIR source location
-  mlir::FileLineColLoc loc(const lang::SourceRange &r) {
-    return builder
-        .getFileLineColLoc(builder.getIdentifier(filename), r.startLine(),
-                           r.endLine())
-        .cast<mlir::FileLineColLoc>();
-  }
-
-  // Returns the element type of `v` if `v` is a MemRef value,
-  // otherwise the function returns the type of `v`.
-  mlir::Type getElementType(const mlir::Value &v) {
-    mlir::Type type = v.getType();
-
-    if (type.isa<mlir::MemRefType>())
-      return type.cast<mlir::MemRefType>().getElementType();
-    else
-      return type;
-  }
 
   // Translates a TC float type to an MLIR float type
   mlir::FloatType getFloatType(int kind) {
@@ -264,6 +160,28 @@ private:
     }
   }
 
+  // Returns the element type of `v` if `v` is a MemRef value,
+  // otherwise the function returns the type of `v`.
+  mlir::Type getElementType(const mlir::Value &v) {
+    mlir::Type type = v.getType();
+
+    if (type.isa<mlir::MemRefType>())
+      return type.cast<mlir::MemRefType>().getElementType();
+    else
+      return type;
+  }
+
+  // Returns the rank of the type of `v`, if `v` is a MemRef
+  // value. Otherwise an exception is thrown.
+  int64_t getRank(const mlir::Value &v) {
+    mlir::Type type = v.getType();
+
+    if (type.isa<mlir::MemRefType>())
+      return type.cast<mlir::MemRefType>().getRank();
+    else
+      throw mlirgen::Exception("Can only determine rank for MemRef");
+  }
+
   // Translates a TC tensor type into an MLIR tensor type. If the
   // original type is a scalar type, a scalar MLIR type is returned.
   mlir::Type getTensorType(const lang::TensorType &tensorType) {
@@ -279,31 +197,80 @@ private:
     }
   }
 
-  // Builds a binary MLIR expression from a TC expression
-  template <typename OpTy>
-  OpTy buildBinaryExpr(const lang::TreeRef &t) {
-    mlir::Value vals[2] = {buildExpr(t->trees().at(0)),
-                           buildExpr(t->trees().at(1))};
+  // Translates a TC source location to an MLIR source location
+  mlir::FileLineColLoc loc(const lang::SourceRange &r) {
+    return builder
+        .getFileLineColLoc(builder.getIdentifier(filename), r.startLine(),
+                           r.endLine())
+        .cast<mlir::FileLineColLoc>();
+  }
+};
 
-    if (vals[0].getType() != vals[1].getType()) {
-      std::stringstream ss;
+// Builds a binary operation from `lhs` and `rhs` associated to the
+// specified location. If both values are float values, the newly
+// created operation is `FOpTyp` and if both values are integer
+// values, `IOpTy` is instantiated. If the values have different types
+// or if they are neither floats nor integers, an exception is thrown.
+template <typename FOpTy, typename IOpTy>
+mlir::Value buildBinaryExprFromValues(mlir::OpBuilder &builder, mlir::Value lhs,
+                                      mlir::Value rhs,
+                                      mlir::FileLineColLoc location) {
+  if (lhs.getType() != rhs.getType()) {
+    std::stringstream ss;
 
-      ss << "Operands for "
-         << "'" << (char)t->kind() << "' "
-         << "have different types: " << getTypeAsString(vals[0].getType())
-         << " and " << getTypeAsString(vals[1].getType());
+    ss << "Operands for binary expression have different types: "
+       << getTypeAsString(lhs.getType()) << " and "
+       << getTypeAsString(rhs.getType());
 
-      throw mlirgen::SourceException(loc(t->range()), ss.str());
-    }
+    throw mlirgen::SourceException(location, ss.str());
+  }
 
-    return builder.create<OpTy>(loc(t->range()), vals[0], vals[1]);
+  mlir::Type resType = lhs.getType();
+
+  if (isMLIRFloatType(resType)) {
+    return builder.create<FOpTy>(location, lhs, rhs);
+  } else if (isMLIRIntType(resType)) {
+    return builder.create<IOpTy>(location, lhs, rhs);
+  } else {
+    throw mlirgen::SourceException(
+        location, "Cannot create binary operation: Unsupported operand type");
+  }
+}
+
+// Builds MLIR expressions without control flow from tensor
+// expressions
+class MLIRValueExprGen : public MLIRGenBase {
+public:
+  MLIRValueExprGen(mlir::MLIRContext *context,
+                   llvm::ScopedHashTable<llvm::StringRef, mlir::Value> &symTab,
+                   const std::string &filename = "unknown filename")
+      : MLIRGenBase(context, filename), symTab(symTab) {}
+
+  MLIRValueExprGen(mlir::OpBuilder &_builder,
+                   llvm::ScopedHashTable<llvm::StringRef, mlir::Value> &symTab,
+                   const std::string &filename = "unknown filename")
+      : MLIRGenBase(_builder.getContext(), filename), symTab(symTab) {
+    this->builder.setInsertionPoint(_builder.getInsertionBlock(),
+                                    _builder.getInsertionPoint());
+  }
+
+  // Builds a binary MLIR expression from a TC expression. Creates an
+  // operation of type `FOpTy` if the operands are floats or an
+  // operation of type `IOpTy` if the operands are integers. If the
+  // operands have different types or if they are neither integers nor
+  // floats, an exception is thrown.
+  template <typename FOpTy, typename IOpTy>
+  mlir::Value buildBinaryExpr(const lang::TreeRef &t) {
+    return buildBinaryExprFromValues<FOpTy, IOpTy>(
+        builder, buildExpr(t->trees().at(0)), buildExpr(t->trees().at(1)),
+        loc(t->range()));
   }
 
   // Builds an MLIR constant from a TC constant. The type of the
   // constant is preserved.
   //
   // Throws an exception if the TC type cannot be expressed in MLIR.
-  mlir::Value buildConstant(const lang::Const &cst) {
+  virtual mlir::Value buildConstant(const lang::Const &cst) {
     int kind = cst.type()->kind();
     mlir::FileLineColLoc location(loc(cst.range()));
 
@@ -409,13 +376,13 @@ private:
   mlir::Value buildExpr(const lang::TreeRef &t) {
     switch (t->kind()) {
     case '+':
-      return buildBinaryExpr<mlir::AddIOp>(t);
+      return buildBinaryExpr<mlir::AddFOp, mlir::AddIOp>(t);
     case '-':
-      return buildBinaryExpr<mlir::SubIOp>(t);
+      return buildBinaryExpr<mlir::SubFOp, mlir::SubIOp>(t);
     case '*':
-      return buildBinaryExpr<mlir::MulIOp>(t);
+      return buildBinaryExpr<mlir::MulFOp, mlir::MulIOp>(t);
     case '/':
-      return buildBinaryExpr<mlir::SignedDivIOp>(t);
+      return buildBinaryExpr<mlir::DivFOp, mlir::SignedDivIOp>(t);
     case lang::TK_NUMBER:
     case lang::TK_CONST:
       return buildConstant(lang::Const(t));
@@ -430,6 +397,137 @@ private:
       throw mlirgen::Exception(ss.str());
     }
   }
+
+  // Translates a map from identifiers to TC RangeContraints to a map
+  // from identifiers to pairs of MLIR values for the respective
+  // bounds
+  IteratorBoundsMap
+  translateIteratorBounds(const IteratorRangeMap &langBounds) {
+    IteratorBoundsMap mlirBounds;
+
+    for (const std::pair<std::string, lang::RangeConstraint> &langBound :
+         langBounds) {
+      std::string iteratorName = langBound.first;
+      const lang::RangeConstraint &constraint = langBound.second;
+
+      mlir::Value lowBound = buildExpr(constraint.start());
+      mlir::Value upBound = buildExpr(constraint.end());
+
+      mlirBounds.insert({iteratorName, {lowBound, upBound}});
+    }
+
+    return mlirBounds;
+  }
+
+protected:
+  llvm::ScopedHashTable<llvm::StringRef, mlir::Value> &symTab;
+};
+
+class MLIRGenImpl : protected MLIRGenBase {
+public:
+  MLIRGenImpl(mlir::MLIRContext *context,
+              const std::string &filename = "unknown file")
+      : MLIRGenBase(context, filename) {}
+
+  // Builds a FuncOp for a definition `def`
+  mlir::FuncOp buildFunction(const std::string &name, const lang::Def &def) {
+    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> var_scope(symTab);
+    std::vector<mlir::Type> argTypes;
+
+    // Add parameters for symbolic tensor dimensions
+    std::set<std::string> sizeParams = collectDimSizeParams(def);
+
+    for (size_t i = 0; i < sizeParams.size(); i++)
+      argTypes.push_back(builder.getIndexType());
+
+    // Add tensor parameters
+    for (lang::Param param : def.params()) {
+      lang::TensorType tensorType = param.tensorType();
+      mlir::Type mlirTensorType = getTensorType(tensorType);
+      argTypes.push_back(mlirTensorType);
+    }
+
+    // Add output parameters
+    std::map<std::string, size_t> outputRanks = collectOutputRanks(def);
+
+    for (lang::Param param : def.returns()) {
+      lang::TensorType tcTensorType = param.tensorType();
+      std::string name = param.ident().name();
+
+      if (param.typeIsInferred()) {
+        std::stringstream ss;
+
+        ss << "Type for output tensor " << name << " not specified";
+
+        throw mlirgen::SourceException(loc(param.range()), ss.str());
+      }
+
+      // Check that used dimensions correspond to the declared
+      // dimensions
+      if (outputRanks.find(name) != outputRanks.end()) {
+        size_t declaredDims = tcTensorType.dims().size();
+
+        if (declaredDims != outputRanks[name]) {
+          std::stringstream ss;
+
+          ss << "Output tensor " << name << " has been declared with "
+             << declaredDims << " dimensions, "
+             << "but is indexed with " << outputRanks[name] << " "
+             << "dimensions";
+
+          throw mlirgen::Exception(ss.str());
+        }
+      }
+
+      mlir::Type mlirTensorType =
+          mlir::MemRefType::get(std::vector<int64_t>(outputRanks[name], -1),
+                                getScalarType(tcTensorType.scalarType()));
+
+      argTypes.push_back(mlirTensorType);
+    }
+
+    mlir::FunctionType func_type =
+        builder.getFunctionType(argTypes, llvm::None);
+
+    mlir::FuncOp funcOp =
+        mlir::FuncOp::create(loc(def.range()), name, func_type);
+
+    mlir::FuncOp function(funcOp);
+    mlir::Block &entryBlock = *function.addEntryBlock();
+
+    // Add all arguments to symbol table
+    {
+      size_t i = 0;
+
+      // Add parameters for symbolic tensor dimensions to symbol table
+      for (const std::string &sizeParam : sizeParams)
+        symTab.insert(sizeParam, funcOp.getArgument(i++));
+
+      // Add input tensors
+      for (lang::Param param : def.params()) {
+        mlir::BlockArgument arg = funcOp.getArgument(i++);
+        symTab.insert(param.ident().name(), arg);
+      }
+
+      // Add outputs
+      for (lang::Param param : def.returns()) {
+        mlir::BlockArgument arg = funcOp.getArgument(i++);
+        symTab.insert(param.ident().name(), arg);
+      }
+    }
+
+    builder.setInsertionPointToStart(&entryBlock);
+
+    for (const lang::Comprehension &comprehension : def.statements())
+      buildComprehension(comprehension);
+
+    builder.create<mlir::ReturnOp>(loc(def.range()));
+
+    return function;
+  }
+
+private:
+  llvm::ScopedHashTable<llvm::StringRef, mlir::Value> symTab;
 
   // Builds an affine loop nest with one loop per iterator from
   // `iterators` using the bounds from `mlirIteratorBounds`.
@@ -467,29 +565,9 @@ private:
     return affFor;
   }
 
-  // Translates a map from identifiers to TC RangeContraints to a map
-  // from identifiers to pairs of MLIR values for the respective
-  // bounds
-  IteratorBoundsMap
-  translateIteratorBounds(const IteratorRangeMap &langBounds) {
-    IteratorBoundsMap mlirBounds;
-
-    for (const std::pair<std::string, lang::RangeConstraint> &langBound :
-         langBounds) {
-      std::string iteratorName = langBound.first;
-      const lang::RangeConstraint &constraint = langBound.second;
-
-      mlir::Value lowBound = buildExpr(constraint.start());
-      mlir::Value upBound = buildExpr(constraint.end());
-
-      mlirBounds.insert({iteratorName, {lowBound, upBound}});
-    }
-
-    return mlirBounds;
-  }
-
   // Builds the MLIR representation of a single comprehension
   void buildComprehension(const lang::Comprehension &c) {
+    MLIRValueExprGen exprGen(builder, symTab, filename);
     mlir::Location startLoc = loc(c.range());
 
     // New scope for iterators
@@ -497,7 +575,8 @@ private:
 
     std::set<std::string> iterators = collectIterators(c, symTab);
     IteratorRangeMap langItBounds = collectExplicitIteratorBounds(c);
-    IteratorBoundsMap mlirItBounds = translateIteratorBounds(langItBounds);
+    IteratorBoundsMap mlirItBounds =
+        exprGen.translateIteratorBounds(langItBounds);
 
     // Decide on an (arbitrary) order for the iterators for the loop
     // nest
@@ -514,7 +593,7 @@ private:
           iteratorsSeq, mlirItBounds, startLoc, &innermostInit);
 
       // Set insert position to body of innermost loop
-      builder.setInsertionPointToStart(innermostInit.getBody());
+      exprGen.getBuilder().setInsertionPointToStart(innermostInit.getBody());
 
       // Generate constant of correct type
       unsigned int cst;
@@ -547,7 +626,7 @@ private:
         throw mlirgen::Exception("Unsupported init type for a reduction");
       }
 
-      buildIndexStoreExpr(cstVal, c.ident(), c.indices());
+      exprGen.buildIndexStoreExpr(cstVal, c.ident(), c.indices());
 
       // Restore insertion point to point after the outermost loop
       builder.setInsertionPointToEnd(outermostInit.getParentOp()->getBlock());
@@ -558,27 +637,27 @@ private:
     mlir::AffineForOp outermost =
         buildAffineLoopNest(iteratorsSeq, mlirItBounds, startLoc, &innermost);
 
-    builder.setInsertionPointToStart(innermost.getBody());
+    exprGen.getBuilder().setInsertionPointToStart(innermost.getBody());
 
     // Build expression for RHS of assignment
-    mlir::Value rhsVal = buildExpr(c.rhs());
+    mlir::Value rhsVal = exprGen.buildExpr(c.rhs());
     mlir::Value assignmentVal;
 
     switch (c.assignment()->kind()) {
     case lang::TK_PLUS_EQ:
     case lang::TK_PLUS_EQ_B:
       assignmentVal = builder.create<mlir::AddFOp>(
-          startLoc, buildIndexLoadExpr(c.ident(), c.indices()), rhsVal);
+          startLoc, exprGen.buildIndexLoadExpr(c.ident(), c.indices()), rhsVal);
       break;
     case lang::TK_TIMES_EQ:
       assignmentVal = builder.create<mlir::MulFOp>(
-          startLoc, buildIndexLoadExpr(c.ident(), c.indices()), rhsVal);
+          startLoc, exprGen.buildIndexLoadExpr(c.ident(), c.indices()), rhsVal);
       break;
     default:
       throw mlirgen::Exception("Unsupported operator");
     }
 
-    buildIndexStoreExpr(rhsVal, c.ident(), c.indices());
+    exprGen.buildIndexStoreExpr(rhsVal, c.ident(), c.indices());
 
     // Restore insertion point to point after the outermost loop
     builder.setInsertionPointToEnd(outermost.getParentOp()->getBlock());
@@ -621,7 +700,7 @@ private:
 // `def`.
 mlir::FuncOp buildMLIRFunction(mlir::MLIRContext &context,
                                const std::string &name, const lang::Def &tc) {
-  MLIRGenImpl generator(context);
+  MLIRGenImpl generator(&context);
   return generator.buildFunction(name, tc);
 }
 } // namespace teckyl
