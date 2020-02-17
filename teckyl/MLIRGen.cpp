@@ -1,4 +1,5 @@
 #include "MLIRGen.h"
+#include "MLIRAffineExprGen.h"
 #include "lang_extras.h"
 
 #include <llvm/ADT/ScopedHashTable.h>

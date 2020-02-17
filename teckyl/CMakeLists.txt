@@ -18,6 +18,7 @@ add_llvm_executable(teckyl
   Exception.h
   lang_affine.h
   lang_extras.h
+  MLIRAffineExprGen.h
   MLIRGen.cpp
   MLIRGen.h
   main.cc)
