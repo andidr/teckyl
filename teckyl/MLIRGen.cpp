@@ -465,9 +465,9 @@ protected:
 
 class MLIRGenImpl : protected MLIRGenBase {
 public:
-  MLIRGenImpl(mlir::MLIRContext *context,
+  MLIRGenImpl(mlir::MLIRContext *context, const MLIRGenOptions &options,
               const std::string &filename = "unknown file")
-      : MLIRGenBase(context, filename) {}
+      : MLIRGenBase(context, filename), options(options) {}
 
   // Builds a FuncOp for a definition `def`
   mlir::FuncOp buildFunction(const std::string &name, const lang::Def &def) {
@@ -568,6 +568,7 @@ public:
 
 private:
   llvm::ScopedHashTable<llvm::StringRef, mlir::Value> symTab;
+  const MLIRGenOptions options;
 
   // Used for tensor initialization to make sure that the specified
   // value is representable both as an int64_t and float
@@ -893,7 +894,7 @@ private:
     //
     // For the non-affine case: just a loop nest
     // For the affine case: a linalg.generic operation
-    if (hasNonAffineIndexing(c.rhs(), iteratorSet)) {
+    if (options.force_std_loops || hasNonAffineIndexing(c.rhs(), iteratorSet)) {
       buildNonAffineReductionCore(c, outTensorVal, iteratorsSeq, startLoc);
     } else {
       buildAffineReductionCore(c, outTensorVal, iterators, iteratorsSeq,
@@ -937,8 +938,9 @@ private:
 // Builds an MLIR function with the name `name` from the TC definition
 // `def`.
 mlir::FuncOp buildMLIRFunction(mlir::MLIRContext &context,
-                               const std::string &name, const lang::Def &tc) {
-  MLIRGenImpl generator(&context);
+                               const std::string &name, const lang::Def &tc,
+                               const MLIRGenOptions &options) {
+  MLIRGenImpl generator(&context, options);
   return generator.buildFunction(name, tc);
 }
 } // namespace teckyl

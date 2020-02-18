@@ -23,6 +23,12 @@ static llvm::cl::opt<enum Action> emitAction(
     llvm::cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
     llvm::cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")));
 
+static llvm::cl::opt<bool> forceStdLoops(
+    "force-std-loops",
+    llvm::cl::desc(
+        "Force use of standard loops when generating code for comprehensions"),
+    llvm::cl::init(false));
+
 // Reads an entire file into a string
 std::string readFile(const std::string& filename)
 {
@@ -63,11 +69,16 @@ void dumpMLIR(const std::map<std::string, lang::Def>& tcs)
   mlir::MLIRContext context;
   mlir::ModuleOp module;
   mlir::OpBuilder builder(&context);
+  teckyl::MLIRGenOptions options;
+
+  options.force_std_loops = forceStdLoops;
   
   module = mlir::ModuleOp::create(builder.getUnknownLoc());
 
   for(auto& tc : tcs) {
-    mlir::FuncOp f = teckyl::buildMLIRFunction(context, tc.first, tc.second);
+    mlir::FuncOp f =
+      teckyl::buildMLIRFunction(context, tc.first, tc.second, options);
+
     module.push_back(f);  
   }
 

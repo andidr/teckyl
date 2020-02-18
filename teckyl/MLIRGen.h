@@ -35,8 +35,15 @@ private:
 
 } // namespace mlirgen
 
-mlir::FuncOp buildMLIRFunction(mlir::MLIRContext &context,
-                               const std::string &name, const lang::Def &tc);
+class MLIRGenOptions {
+public:
+  bool force_std_loops = false;
+};
+
+mlir::FuncOp
+buildMLIRFunction(mlir::MLIRContext &context, const std::string &name,
+                  const lang::Def &tc,
+                  const MLIRGenOptions &options = MLIRGenOptions{});
 
 } // namespace teckyl
 
