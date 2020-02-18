@@ -251,15 +251,16 @@ public:
   }
 
   // Builds a MLIR value corresponding to the TC identifier `i`.
-  mlir::Value buildIdent(const lang::Ident &i) {
+  virtual mlir::Value buildIdent(const lang::Ident &i) {
     return symTab.lookup(i.name());
   }
 
   // Builds an MLIR load operation indexing the tensor that
   // corresponds to `ident` using the symbols corresponding to the
   // identifiers from `indices`.
-  mlir::LoadOp buildIndexLoadExpr(const lang::Ident &ident,
-                                  const lang::ListView<lang::Ident> &indices) {
+  virtual mlir::LoadOp
+  buildIndexLoadExpr(const lang::Ident &ident,
+                     const lang::ListView<lang::Ident> &indices) {
     std::vector<mlir::Value> argVals;
 
     for (const lang::Ident &arg : indices) {
@@ -274,7 +275,7 @@ public:
 
   // Builds an MLIR load operation indexing the tensor that
   // corresponds to `ident` using the expressions passed in `indices`.
-  mlir::LoadOp
+  virtual mlir::LoadOp
   buildIndexLoadExpr(const lang::Ident &ident,
                      const lang::ListView<lang::TreeRef> &indices) {
     std::vector<mlir::Value> argVals;
@@ -290,14 +291,14 @@ public:
   }
 
   // Translates a TC apply expression into an MLIR load operation.
-  mlir::LoadOp buildIndexLoadExpr(const lang::Apply &a) {
+  virtual mlir::LoadOp buildIndexLoadExpr(const lang::Apply &a) {
     return buildIndexLoadExpr(a.name(), a.arguments());
   }
 
   // Builds an MLIR store operation writing the value `valueToStore`
   // to the tensor corresponds to `ident` indexed using the symbols
   // corresponding to the identifiers from `indices`.
-  mlir::StoreOp
+  virtual mlir::StoreOp
   buildIndexStoreExpr(mlir::Value &valueToStore, const lang::Ident &ident,
                       const lang::ListView<lang::Ident> &indices) {
     mlir::FileLineColLoc location(loc(ident.range()));
@@ -329,7 +330,7 @@ public:
   }
 
   // Translates a TC expression into an MLIR expression
-  mlir::Value buildExpr(const lang::TreeRef &t) {
+  virtual mlir::Value buildExpr(const lang::TreeRef &t) {
     switch (t->kind()) {
     case '+':
       return buildBinaryExpr<mlir::AddFOp, mlir::AddIOp>(t);
@@ -350,14 +351,14 @@ public:
       std::stringstream ss;
       ss << "Unknown tree type: '" << (int)t->kind() << "'";
       std::cerr << ss.str() << std::endl;
-      throw mlirgen::Exception(ss.str());
+      throw mlirgen::SourceException(loc(t->range()), ss.str());
     }
   }
 
   // Translates a map from identifiers to TC RangeContraints to a map
   // from identifiers to pairs of MLIR values for the respective
   // bounds
-  IteratorBoundsMap
+  virtual IteratorBoundsMap
   translateIteratorBounds(const IteratorRangeMap &langBounds) {
     IteratorBoundsMap mlirBounds;
 
@@ -377,6 +378,32 @@ public:
 
 protected:
   llvm::ScopedHashTable<llvm::StringRef, mlir::Value> &symTab;
+};
+
+// Builds MLIR expressions without control flow from tensor
+// expressions. The difference with MLIRValueExprGen is that entire
+// subtrees of the tensor expression can be mapped to MLIR values
+// (e.g., to map sub-expressions to block or function arguments or to
+// avoid re-generation of known sub-expressions).
+class MLIRMappedValueExprGen : public MLIRValueExprGen {
+public:
+  MLIRMappedValueExprGen(
+      mlir::OpBuilder &_builder,
+      const std::map<lang::TreeId, mlir::Value> &valMap,
+      llvm::ScopedHashTable<llvm::StringRef, mlir::Value> &symTab,
+      const std::string &filename = "unknown filename")
+      : MLIRValueExprGen(_builder, symTab, filename), valMap(valMap) {}
+
+  virtual mlir::Value buildExpr(const lang::TreeRef &t) override {
+    auto idxIt = valMap.find(t->id());
+    if (idxIt != valMap.end())
+      return idxIt->second;
+    else
+      return MLIRValueExprGen::buildExpr(t);
+  }
+
+protected:
+  const std::map<lang::TreeId, mlir::Value> &valMap;
 };
 
 class MLIRGenImpl : protected MLIRGenBase {
