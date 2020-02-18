@@ -40,5 +40,8 @@ target_link_libraries(teckyl
     MLIRAnalysis
     MLIRIR
     MLIRParser
-    MLIRTransforms)
+    MLIRTransforms
+    MLIRLinalgEDSC
+    MLIREDSC
+    MLIRLinalgOps)
 

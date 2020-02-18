@@ -1,9 +1,12 @@
 #include "MLIRGen.h"
 #include "MLIRAffineExprGen.h"
+#include "lang_affine.h"
 #include "lang_extras.h"
 
 #include <llvm/ADT/ScopedHashTable.h>
 #include <mlir/Dialect/AffineOps/AffineOps.h>
+#include <mlir/Dialect/Linalg/EDSC/Builders.h>
+#include <mlir/Dialect/LoopOps/LoopOps.h>
 #include <mlir/Dialect/StandardOps/Ops.h>
 #include <mlir/IR/AffineExpr.h>
 #include <mlir/IR/Builders.h>
@@ -46,20 +49,34 @@ static inline bool isMLIRIntType(mlir::Type &t) {
 using IteratorBoundsMap =
     std::map<std::string, std::pair<mlir::Value, mlir::Value>>;
 
+// Kinds of tensor expression iterators
+enum IteratorKind {
+  // Iterator appears on the left hand side (and may also appear at
+  // the right hand side)
+  LHS,
+
+  // Iterator appears only on the right hand side
+  RHSOnly
+};
+
 // Collects the set of iterators of a comprehensions by listing all
 // identifiers and retaining only those that are not in the symbol
 // table `symTab`.
-static std::set<std::string> collectIterators(
+static std::map<std::string, IteratorKind> collectIterators(
     const lang::Comprehension &comprehension,
     const llvm::ScopedHashTable<llvm::StringRef, mlir::Value> &symTab) {
-  std::set<std::string> iterators;
+  std::map<std::string, IteratorKind> iterators;
 
-  mapRecursive(comprehension, [&](const lang::TreeRef &t) {
+  for (const lang::Ident &lhsIndex : comprehension.indices())
+    iterators.emplace(lhsIndex.name(), IteratorKind::LHS);
+
+  mapRecursive(comprehension.rhs(), [&](const lang::TreeRef &t) {
     if (t->kind() == lang::TK_IDENT) {
       std::string name = lang::Ident(t).name();
 
-      if (symTab.count(name) == 0)
-        iterators.insert(name);
+      if (iterators.find(name) == iterators.end() && symTab.count(name) == 0) {
+        iterators.emplace(name, IteratorKind::RHSOnly);
+      }
     }
   });
 
@@ -220,6 +237,46 @@ public:
     return buildBinaryExprFromValues<FOpTy, IOpTy>(
         builder, buildExpr(t->trees().at(0)), buildExpr(t->trees().at(1)),
         loc(t->range()));
+  }
+
+  // Builds a constant from a string `s` with the same type as
+  // `targetType`
+  virtual mlir::Value buildConstant(const std::string &cst,
+                                    const mlir::Type &targetType,
+                                    const mlir::Location &location) {
+    if (targetType.isa<mlir::FloatType>()) {
+      mlir::FloatType floatType = targetType.cast<mlir::FloatType>();
+
+      if (floatType.isF16()) {
+        return builder.create<mlir::ConstantFloatOp>(
+            location, llvm::APFloat(llvm::APFloat::IEEEhalf(), cst), floatType);
+      } else if (floatType.isF32()) {
+        return builder.create<mlir::ConstantFloatOp>(
+            location, llvm::APFloat(llvm::APFloat::IEEEsingle(), cst),
+            floatType);
+      } else if (floatType.isF64()) {
+        return builder.create<mlir::ConstantFloatOp>(
+            location, llvm::APFloat(llvm::APFloat::IEEEdouble(), cst),
+            floatType);
+      } else {
+        throw mlirgen::Exception(
+            "Could not build constant: Unknown float type");
+      }
+    } else if (targetType.isa<mlir::IntegerType>()) {
+      mlir::IntegerType iType = targetType.cast<mlir::IntegerType>();
+
+      std::istringstream iss(cst);
+      int64_t icst;
+
+      if (!(iss >> icst))
+        throw mlirgen::Exception("Could not build integer constant");
+
+      return builder.create<mlir::ConstantIntOp>(location, icst,
+                                                 iType.getWidth());
+    } else {
+      throw mlirgen::Exception(
+          "Could not build constant: Unsupported target type");
+    }
   }
 
   // Builds an MLIR constant from a TC constant. The type of the
@@ -512,138 +569,336 @@ public:
 private:
   llvm::ScopedHashTable<llvm::StringRef, mlir::Value> symTab;
 
-  // Builds an affine loop nest with one loop per iterator from
-  // `iterators` using the bounds from `mlirIteratorBounds`.
+  // Used for tensor initialization to make sure that the specified
+  // value is representable both as an int64_t and float
+  enum NeutralElement { Zero = 0, One = 1 };
+
+  // Builds an MLIR constant with the same type as `targetType` for
+  // use as the neutral element in a reduction.
+  mlir::Value buildNeutralElementConstant(const mlir::Type &targetType,
+                                          mlir::Location location,
+                                          NeutralElement cst) {
+    if (targetType.isa<mlir::FloatType>()) {
+      mlir::FloatType fType = targetType.cast<mlir::FloatType>();
+
+      return builder.create<mlir::ConstantFloatOp>(
+          location, mlir::APFloat((float)cst), fType);
+    } else if (targetType.isa<mlir::IntegerType>()) {
+      mlir::IntegerType iType = targetType.cast<mlir::IntegerType>();
+
+      return builder.create<mlir::ConstantIntOp>(location, (int64_t)cst,
+                                                 iType.getWidth());
+    } else {
+      throw mlirgen::Exception("Unsupported init type for a reduction");
+    }
+  }
+
+  // Builds a loop nest with one loop per iterator from `iterators`
+  // using the bounds from `mlirIteratorBounds`.
   //
   // If `innermost` is non-NULL, a reference to the innermost loop is
   // stored in `*innermost`.
-  mlir::AffineForOp
-  buildAffineLoopNest(const std::vector<std::string> &iterators,
-                      const IteratorBoundsMap &mlirIteratorBounds,
-                      const mlir::Location &location,
-                      mlir::AffineForOp *innermost = nullptr) {
-    mlir::AffineForOp affFor;
+  mlir::loop::ForOp buildLoopNest(const std::vector<std::string> &iterators,
+                                  const IteratorBoundsMap &mlirIteratorBounds,
+                                  const mlir::Location &location,
+                                  mlir::loop::ForOp *innermost = nullptr) {
+    mlir::loop::ForOp outermost;
+    mlir::Value step = builder.create<mlir::ConstantIndexOp>(location, 1);
 
-    // Build affine loop nest for all involved iterators
+    // Build loop nest for all involved iterators
     for (const auto &it : iterators) {
-      affFor = builder.create<mlir::AffineForOp>(
-          location, mlir::ValueRange({mlirIteratorBounds.at(it).first}),
-          mlir::AffineMap::get(
-              0, 1, {mlir::getAffineSymbolExpr(0, builder.getContext())}),
-          mlir::ValueRange({mlirIteratorBounds.at(it).second}),
-          mlir::AffineMap::get(
-              0, 1, {mlir::getAffineSymbolExpr(0, builder.getContext())}),
-          1);
+      mlir::loop::ForOp loop = builder.create<mlir::loop::ForOp>(
+          location, mlirIteratorBounds.at(it).first,
+          mlirIteratorBounds.at(it).second, step);
+
+      if (!outermost)
+        outermost = loop;
 
       // Create symbol table entry to map iterator names to induction
       // variables
-      symTab.insert(it, affFor.getInductionVar());
+      symTab.insert(it, loop.getInductionVar());
 
       if (innermost)
-        *innermost = affFor;
+        *innermost = loop;
 
-      builder.setInsertionPointToStart(affFor.getBody());
+      builder.setInsertionPointToStart(loop.getBody());
     }
 
-    return affFor;
+    return outermost;
   }
 
-  // Builds the MLIR representation of a single comprehension
-  void buildComprehension(const lang::Comprehension &c) {
+  // Builds a linalg.generic operation that initializes the specified
+  // tensor with the specified value.
+  void buildTensorInitialization(mlir::Value tensor, mlir::Location location,
+                                 NeutralElement value) {
+    mlir::Type elementType = getElementType(tensor);
+    mlir::Value cstVal =
+        buildNeutralElementConstant(elementType, location, value);
+    int64_t rank = getRank(tensor);
+    std::vector<mlir::IteratorType> iteratorTypes(rank,
+                                                  mlir::IteratorType::Parallel);
+    std::vector<mlir::edsc::StructuredIndexed> outputs{tensor};
+
+    mlir::edsc::ScopedContext sc(builder, location);
+
+    auto regionBuilder = [&](mlir::ArrayRef<mlir::BlockArgument> arg) {
+      MLIRValueExprGen exprGen(mlir::edsc::ScopedContext::getBuilder(), symTab,
+                               filename);
+      mlir::Value cstVal;
+
+      switch (value) {
+      case NeutralElement::Zero:
+        cstVal = exprGen.buildConstant("0", elementType, location);
+        break;
+      case NeutralElement::One:
+        cstVal = exprGen.buildConstant("1", elementType, location);
+        break;
+      }
+
+      mlir::edsc::intrinsics::linalg_yield{cstVal};
+    };
+
+    mlir::edsc::ValueHandle O(tensor);
+    mlir::edsc::StructuredIndexed SO(O);
+
+    // Build one-to-one mapping for dimensions
+    std::vector<mlir::AffineExpr> affIndexes;
+
+    for (size_t dimIdx = 0; dimIdx < rank; dimIdx++) {
+      mlir::AffineExpr e = mlir::getAffineDimExpr(dimIdx, builder.getContext());
+      affIndexes.push_back(e);
+    }
+
+    mlir::edsc::makeGenericLinalgOp(iteratorTypes, {}, SO(affIndexes),
+                                    regionBuilder);
+  }
+
+  // Collects all apply expressions that are descendants of t in an
+  // arbitrary order
+  std::vector<lang::Apply> collectTensorAccessesSeq(const lang::TreeRef &t) {
+    std::vector<lang::Apply> res;
+
+    // Collect all tensor accesses in subexpressions
+    mapRecursive(t, [&](const lang::TreeRef &e) {
+      if (e->kind() == lang::TK_APPLY)
+        res.push_back(lang::Apply(e));
+    });
+
+    return res;
+  }
+
+  // Builds the core of a comprehension (e.g., just the actual
+  // compitation without the initialization broadcasting the neutral
+  // element for default-initialized reductions). This is the fallback
+  // routine for comprehensions with possibly non-affine accesses.
+  void buildNonAffineReductionCore(const lang::Comprehension &c,
+                                   mlir::Value tensor,
+                                   const std::vector<std::string> &iteratorsSeq,
+                                   mlir::Location location) {
     MLIRValueExprGen exprGen(builder, symTab, filename);
-    mlir::Location startLoc = loc(c.range());
 
-    // New scope for iterators
-    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> var_scope(symTab);
-
-    std::set<std::string> iterators = collectIterators(c, symTab);
     IteratorRangeMap langItBounds = collectExplicitIteratorBounds(c);
     IteratorBoundsMap mlirItBounds =
         exprGen.translateIteratorBounds(langItBounds);
 
-    // Decide on an (arbitrary) order for the iterators for the loop
-    // nest
-    std::vector<std::string> iteratorsSeq;
-    std::copy(iterators.begin(), iterators.end(),
-              std::back_inserter(iteratorsSeq));
+    mlir::Block *currBlock = builder.getInsertionBlock();
 
-    // Generate loop nest for initialization for default-initialized
-    // reductions
-    if (c.assignment()->kind() == lang::TK_PLUS_EQ_B ||
-        c.assignment()->kind() == lang::TK_TIMES_EQ_B) {
-      mlir::AffineForOp innermostInit;
-      mlir::AffineForOp outermostInit = buildAffineLoopNest(
-          iteratorsSeq, mlirItBounds, startLoc, &innermostInit);
-
-      // Set insert position to body of innermost loop
-      exprGen.getBuilder().setInsertionPointToStart(innermostInit.getBody());
-
-      // Generate constant of correct type
-      unsigned int cst;
-
-      if (c.assignment()->kind() == lang::TK_PLUS_EQ_B) {
-        cst = 0;
-      } else if (c.assignment()->kind() == lang::TK_TIMES_EQ_B) {
-        cst = 1;
-      } else {
-        throw mlirgen::Exception("Unsupported Operator");
-      }
-
-      mlir::Value outTensorVal = symTab.lookup(c.ident().name());
-      mlir::Type outTensorElementType = getElementType(outTensorVal);
-
-      mlir::Value cstVal;
-
-      if (outTensorElementType.isa<mlir::FloatType>()) {
-        mlir::FloatType fType = outTensorElementType.cast<mlir::FloatType>();
-
-        cstVal = builder.create<mlir::ConstantFloatOp>(
-            startLoc, mlir::APFloat((float)cst), fType);
-      } else if (outTensorElementType.isa<mlir::IntegerType>()) {
-        mlir::IntegerType iType =
-            outTensorElementType.cast<mlir::IntegerType>();
-
-        cstVal = builder.create<mlir::ConstantIntOp>(startLoc, (int64_t)cst,
-                                                     iType.getWidth());
-      } else {
-        throw mlirgen::Exception("Unsupported init type for a reduction");
-      }
-
-      exprGen.buildIndexStoreExpr(cstVal, c.ident(), c.indices());
-
-      // Restore insertion point to point after the outermost loop
-      builder.setInsertionPointToEnd(outermostInit.getParentOp()->getBlock());
-    }
-
-    // Build loop nest for actual computation
-    mlir::AffineForOp innermost;
-    mlir::AffineForOp outermost =
-        buildAffineLoopNest(iteratorsSeq, mlirItBounds, startLoc, &innermost);
+    mlir::loop::ForOp innermost;
+    buildLoopNest(iteratorsSeq, mlirItBounds, location, &innermost);
 
     exprGen.getBuilder().setInsertionPointToStart(innermost.getBody());
 
     // Build expression for RHS of assignment
     mlir::Value rhsVal = exprGen.buildExpr(c.rhs());
+    mlir::Type rhsType = rhsVal.getType();
+    mlir::Value accu = exprGen.buildIndexLoadExpr(c.ident(), c.indices());
     mlir::Value assignmentVal;
 
     switch (c.assignment()->kind()) {
     case lang::TK_PLUS_EQ:
     case lang::TK_PLUS_EQ_B:
-      assignmentVal = builder.create<mlir::AddFOp>(
-          startLoc, exprGen.buildIndexLoadExpr(c.ident(), c.indices()), rhsVal);
+      assignmentVal = buildBinaryExprFromValues<mlir::AddFOp, mlir::AddIOp>(
+          exprGen.getBuilder(), rhsVal, accu, loc(c.range()));
       break;
     case lang::TK_TIMES_EQ:
-      assignmentVal = builder.create<mlir::MulFOp>(
-          startLoc, exprGen.buildIndexLoadExpr(c.ident(), c.indices()), rhsVal);
+    case lang::TK_TIMES_EQ_B:
+      assignmentVal = buildBinaryExprFromValues<mlir::MulFOp, mlir::MulIOp>(
+          exprGen.getBuilder(), rhsVal, accu, loc(c.range()));
       break;
     default:
       throw mlirgen::Exception("Unsupported operator");
     }
 
-    exprGen.buildIndexStoreExpr(rhsVal, c.ident(), c.indices());
+    exprGen.buildIndexStoreExpr(assignmentVal, c.ident(), c.indices());
 
     // Restore insertion point to point after the outermost loop
-    builder.setInsertionPointToEnd(outermost.getParentOp()->getBlock());
+    builder.setInsertionPointToEnd(currBlock);
+  }
+
+  // Builds the core of a comprehension (e.g., just the actual
+  // compitation without the initialization broadcasting the neutral
+  // element for default-initialized reductions) with affine
+  // accesses. The check for affine accesses must be performed prior
+  // to the call.
+  void
+  buildAffineReductionCore(const lang::Comprehension &c, mlir::Value tensor,
+                           const std::map<std::string, IteratorKind> &iterators,
+                           const std::vector<std::string> &iteratorsSeq,
+                           mlir::Location location) {
+    std::vector<lang::Apply> tensorAccesses = collectTensorAccessesSeq(c.rhs());
+    std::vector<mlir::edsc::StructuredIndexed> inputs;
+    std::set<std::string> accessedTensors;
+    std::map<lang::TreeId, unsigned int> argIndexes;
+
+    // Extract names of all tensors that are indexed on the rhs
+    for (const lang::Apply &apply : tensorAccesses)
+      accessedTensors.insert(apply.name().name());
+
+    // Add output tensor
+    accessedTensors.insert(c.ident().name());
+
+    // Create a mapping between iterators and their dimension index
+    // for the affine expression for fast lookup
+    std::map<std::string, unsigned int> iteratorDims;
+
+    {
+      unsigned int dim = 0;
+      for (const std::string &it : iteratorsSeq)
+        iteratorDims.emplace(it, dim++);
+    }
+
+    MLIRAffineExprGen affGen(builder.getContext(), iteratorDims);
+
+    // Create one AffineExpr per access dimension of each tensor
+    // access; keep a mapping between apply expressions and the index
+    // within the lists of input block arguments for the generated
+    // linalg operation
+    for (const lang::Apply &a : tensorAccesses) {
+      std::vector<mlir::AffineExpr> aff = affGen.buildAffineExpressions(a);
+
+      mlir::Value tensorValue = symTab.lookup(a.name().name());
+      mlir::edsc::ValueHandle tensorHandle(tensorValue);
+      mlir::edsc::StructuredIndexed tensorBase(tensorHandle);
+      mlir::edsc::StructuredIndexed tensorIndexed = tensorBase(aff);
+
+      argIndexes.insert({a.id(), inputs.size()});
+      inputs.push_back(tensorIndexed);
+    }
+
+    // Create a StructuredIndexed for the output tensor indexed by the
+    // non-reduction dimensions
+    std::vector<mlir::edsc::StructuredIndexed> outputs;
+    {
+      std::vector<mlir::AffineExpr> aff =
+          affGen.buildAffineExpressions(c.indices());
+      mlir::edsc::StructuredIndexed tensorHandle(tensor);
+      mlir::edsc::StructuredIndexed tensorIndexed(tensorHandle(aff));
+      outputs.push_back(tensorIndexed);
+    }
+
+    // Build iteration dimensions
+    std::vector<mlir::IteratorType> iteratorTypes;
+
+    for (const std::string &it : iteratorsSeq) {
+      if (iterators.at(it) == IteratorKind::LHS)
+        iteratorTypes.push_back(mlir::IteratorType::Parallel);
+      else
+        iteratorTypes.push_back(mlir::IteratorType::Reduction);
+    }
+
+    mlir::edsc::ScopedContext sc(builder, location);
+
+    // Region builder for the body of the linalg.generic
+    // operation. The block arguments are the tensor elements from the
+    // apply expressions and the value at the current position in the
+    // output tensor.
+    //
+    // Generate MLIR expressions for the rhs tensor expression of the
+    // comprehension, but use mappings to block arguments for all
+    // apply expressions.
+    auto regionBuilder = [&](mlir::ArrayRef<mlir::BlockArgument> blockArgs) {
+      // Prepare mapping from lang::Tree IDs to block Arguments representing the
+      // tensor reads
+      std::map<lang::TreeId, mlir::Value> valMap;
+
+      for (auto it : argIndexes)
+        valMap.insert({it.first, blockArgs[it.second]});
+
+      MLIRMappedValueExprGen gen(mlir::edsc::ScopedContext::getBuilder(),
+                                 valMap, symTab, filename);
+      mlir::Value rhsVal = gen.buildExpr(c.rhs());
+
+      // Accumulator for output tensor is always the last argument
+      mlir::Value accu = blockArgs[blockArgs.size() - 1];
+      mlir::Value res;
+
+      // Build the operator for the reduction and store final value
+      // for the reduction step in res
+      switch (c.assignment()->kind()) {
+      case lang::TK_PLUS_EQ:
+      case lang::TK_PLUS_EQ_B:
+        res = buildBinaryExprFromValues<mlir::AddFOp, mlir::AddIOp>(
+            gen.getBuilder(), rhsVal, accu, loc(c.range()));
+        break;
+      case lang::TK_TIMES_EQ:
+      case lang::TK_TIMES_EQ_B:
+        res = buildBinaryExprFromValues<mlir::MulFOp, mlir::MulIOp>(
+            gen.getBuilder(), rhsVal, accu, loc(c.range()));
+        break;
+      default:
+        throw mlirgen::Exception("Unsupported operator");
+      }
+
+      mlir::edsc::intrinsics::linalg_yield{res};
+    };
+
+    mlir::edsc::makeGenericLinalgOp(iteratorTypes, inputs, outputs,
+                                    regionBuilder);
+  }
+
+  // Builds the MLIR representation of a single comprehension
+  void buildComprehension(const lang::Comprehension &c) {
+    mlir::Location startLoc = loc(c.range());
+
+    // New scope for iterators
+    llvm::ScopedHashTableScope<llvm::StringRef, mlir::Value> var_scope(symTab);
+
+    std::map<std::string, IteratorKind> iterators = collectIterators(c, symTab);
+    std::set<std::string> iteratorSet;
+
+    for (const std::pair<std::string, IteratorKind> &it : iterators)
+      iteratorSet.insert(it.first);
+
+    // Decide on an (arbitrary) order for the iterators for the loop
+    // nest
+    std::vector<std::string> iteratorsSeq;
+
+    for (std::pair<std::string, IteratorKind> it : iterators)
+      iteratorsSeq.push_back(it.first);
+
+    mlir::Value outTensorVal = symTab.lookup(c.ident().name());
+
+    // Initialize output tensor for default-initialized reductions
+    if (c.assignment()->kind() == lang::TK_PLUS_EQ_B) {
+      buildTensorInitialization(outTensorVal, startLoc, NeutralElement::Zero);
+    } else if (c.assignment()->kind() == lang::TK_TIMES_EQ_B) {
+      buildTensorInitialization(outTensorVal, startLoc, NeutralElement::One);
+    } else if (c.assignment()->kind() == lang::TK_MAX_EQ_B ||
+               c.assignment()->kind() == lang::TK_MIN_EQ_B) {
+      // TODO: Support max and min
+      throw Exception("Unsupported reduction");
+    }
+
+    // Build code for actual computation
+    //
+    // For the non-affine case: just a loop nest
+    // For the affine case: a linalg.generic operation
+    if (hasNonAffineIndexing(c.rhs(), iteratorSet)) {
+      buildNonAffineReductionCore(c, outTensorVal, iteratorsSeq, startLoc);
+    } else {
+      buildAffineReductionCore(c, outTensorVal, iterators, iteratorsSeq,
+                               startLoc);
+    }
   }
 
   // Returns a map with one entry per output tensor specifying their
