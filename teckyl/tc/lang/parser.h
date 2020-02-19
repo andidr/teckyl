@@ -32,11 +32,44 @@ struct Parser {
   }
   TreeRef parseConst() {
     auto t = L.expect(TK_NUMBER);
-    auto type = (t.text().find('.') != std::string::npos ||
-                 t.text().find('e') != std::string::npos)
-        ? TK_FLOAT
-        : TK_INT32;
-    return Const::create(t.range, d(t.numStringValue()), c(type, t.range, {}));
+    int type;
+
+    std::string suffix = t.numSuffix();
+
+    // Try to find a type suffix indicating the exact type of the
+    // constant. Otherwise assume 32-bit signed values for integers
+    // and 32-bit precision for floating point values by default.
+    if (suffix == "f16")
+      type = TK_FLOAT16;
+    else if (suffix == "f32")
+      type = TK_FLOAT32;
+    else if (suffix == "f64")
+      type = TK_FLOAT64;
+    else if (suffix == "u8")
+      type = TK_UINT8;
+    else if (suffix == "u16")
+      type = TK_UINT16;
+    else if (suffix == "u32")
+      type = TK_UINT32;
+    else if (suffix == "u64")
+      type = TK_UINT64;
+    else if (suffix == "i8")
+      type = TK_INT8;
+    else if (suffix == "i16")
+      type = TK_INT16;
+    else if (suffix == "i32")
+      type = TK_INT32;
+    else if (suffix == "i64")
+      type = TK_INT64;
+    else if (t.text().find('.') != std::string::npos ||
+             t.text().find('e') != std::string::npos) {
+      type = TK_FLOAT32;
+    } else {
+      type = TK_INT32;
+    }
+
+    return Const::create(t.range, d(t.numStringValue(), t.numSuffix()),
+                         c(type, t.range, {}));
   }
   // things like a 1.0 or a(4) that are not unary/binary expressions
   // and have higher precedence than all of them
@@ -75,7 +108,7 @@ struct Parser {
         prefix = Apply::create(range, prefix, parseExpList());
       } else if (L.nextIf('.')) {
         auto t = L.expect(TK_NUMBER);
-        prefix = Select::create(range, prefix, d(t.numStringValue()));
+        prefix = Select::create(range, prefix, d(t.numStringValue(), t.numSuffix()));
       }
     }
 
@@ -304,8 +337,8 @@ struct Parser {
 
  private:
   // short helpers to create nodes
-  TreeRef d(const std::string& v) {
-    return Number::create(v);
+  TreeRef d(const std::string& v, const std::string& suffix) {
+    return Number::create(v, suffix);
   }
   TreeRef s(const std::string& s) {
     return String::create(s);

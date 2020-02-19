@@ -22,6 +22,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <cstring>
 
 namespace lang {
 
@@ -189,7 +190,52 @@ struct SharedParserData {
     char* endptr;
     std::strtod(startptr, &endptr);
     *len = endptr - startptr;
-    return *len > 0;
+    if (*len == 0)
+      return false;
+
+    bool isFloatLiteral = false;
+
+    for(const char* tokptr = startptr; tokptr != endptr; tokptr++) {
+      if(*tokptr == '.' || *tokptr == 'e') {
+	isFloatLiteral = true;
+	break;
+      }
+    }
+
+    // It's safe to dereference endptr, since as per the specification
+    // of strtod, it is either equal to startptr or the address of the
+    // character past startptr. Since startptr is initialized with
+    // std::string::c_str(), it is guaranteed to point to a sequence
+    // of characters terminated by zero, so endptr points at most at
+    // the NUL character at the end of the string.
+    //
+    // Similarly, the use of C string functions are safe here, since
+    // the above check guarantees that endptr hasn't moved past the
+    // NUL character.
+    if (*endptr != '\0') {
+      static const char* suffixes[] = {"i8", "i16", "i32", "i64",
+				       "u8", "u16", "u32", "u64",
+				       "f16", "f32", "f64"};
+
+#define ARRAY_SIZE(a) ((sizeof(a) / sizeof(a[0])))
+
+      for(size_t i = 0; i < ARRAY_SIZE(suffixes); i++) {
+	size_t sufflen = strlen(suffixes[i]);
+
+	if(std::strncmp(endptr, suffixes[i], sufflen) == 0) {
+	  *len += sufflen;
+
+	  // Float literals must have a float type suffix
+	  if(isFloatLiteral && suffixes[i][0] != 'f')
+	    return false;
+	  else
+	    return true;
+	}
+      }
+    }
+
+    // Constant without type suffix
+    return true;
   }
   // find the longest match of str.substring(pos) against a token, return true
   // if successful
@@ -408,12 +454,38 @@ struct Token {
   int kind;
   SourceRange range;
   Token(int kind, const SourceRange& range) : kind(kind), range(range) {}
+
+  // Returns the numerical portion of the string without suffix for
+  // TK_NUMBER
   std::string numStringValue() {
     assert(TK_NUMBER == kind);
     size_t idx;
     double r = std::stod(text(), &idx);
-    assert(idx == range.size());
-    return text();
+
+    assert(idx > 0);
+
+    if(idx < range.size()) {
+      std::string suffix = text().substr(idx);
+
+      assert(suffix == "f16" || suffix == "f32" || suffix == "f64" ||
+             suffix == "u8" || suffix == "u16" || suffix == "u32" ||
+             suffix == "u64" || suffix == "i8" || suffix == "i16" ||
+             suffix == "i32" || suffix == "i64");
+    } else {
+      assert(idx == range.size());
+    }
+
+    return text().substr(0, idx);
+  }
+  // Returns the suffix for the number literal (either "u8", "u16",
+  // "u32", "u64", "i8", "i16", "i32", "i64", "f16", "f32", "f64" or
+  // the empty string "" if no suffix has been specified originally.
+  std::string numSuffix() {
+    assert(TK_NUMBER == kind);
+    size_t idx;
+    std::stod(text(), &idx);
+
+    return text().substr(idx);
   }
   std::string text() {
     return range.text();

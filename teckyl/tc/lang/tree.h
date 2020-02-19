@@ -126,9 +126,13 @@ struct String : public Tree {
   std::string value_;
 };
 struct Number : public Tree {
-  Number(const std::string& value_) : Tree(TK_NUMBER), value_(value_) {}
+  Number(const std::string& value_, const std::string& suffix) :
+    Tree(TK_NUMBER), value_(value_), suffix_(suffix_) {}
   virtual const std::string& numValue() const override {
     return value_;
+  }
+  virtual const std::string& suffix() const {
+    return suffix_;
   }
   template <typename... Args>
   static TreeRef create(Args&&... args) {
@@ -137,6 +141,7 @@ struct Number : public Tree {
 
  private:
   const std::string value_;
+  const std::string suffix_;
 };
 struct Bool : public Tree {
   Bool(bool value_) : Tree(TK_BOOL_VALUE), value_(value_) {}
