@@ -31,7 +31,7 @@ namespace lang {
 /// for instance the expression a*b+1 is represented as:
 /// (+ (* (ident a) (ident b)) (const 1))
 /// Atoms like 'a', 'b', and '1' are represented by subclasses of Tree which
-/// define stringValue() and doubleValue().
+/// define stringValue() and numValue().
 /// Everything else is a Compound object, which has a 'kind' that is a token
 /// from Lexer.h's TokenKind enum, and contains a list of subtrees.
 /// Like TokenKind single-character operators like '+' are representing using
@@ -72,7 +72,7 @@ struct Tree : std::enable_shared_from_this<Tree> {
   virtual const SourceRange& range() const {
     throw std::runtime_error("is an Atom");
   }
-  virtual double doubleValue() const {
+  virtual const std::string& numValue() const {
     throw std::runtime_error("not a TK_NUMBER");
   }
   virtual const std::string& stringValue() const {
@@ -126,8 +126,8 @@ struct String : public Tree {
   std::string value_;
 };
 struct Number : public Tree {
-  Number(double value_) : Tree(TK_NUMBER), value_(value_) {}
-  virtual double doubleValue() const override {
+  Number(const std::string& value_) : Tree(TK_NUMBER), value_(value_) {}
+  virtual const std::string& numValue() const override {
     return value_;
   }
   template <typename... Args>
@@ -136,7 +136,7 @@ struct Number : public Tree {
   }
 
  private:
-  double value_;
+  const std::string value_;
 };
 struct Bool : public Tree {
   Bool(bool value_) : Tree(TK_BOOL_VALUE), value_(value_) {}
@@ -242,7 +242,7 @@ struct pretty_tree {
     std::stringstream out;
     switch (t->kind()) {
       case TK_NUMBER:
-        out << t->doubleValue();
+        out << t->numValue();
         break;
       case TK_STRING:
         out << t->stringValue();

@@ -36,7 +36,7 @@ struct Parser {
                  t.text().find('e') != std::string::npos)
         ? TK_FLOAT
         : TK_INT32;
-    return Const::create(t.range, d(t.doubleValue()), c(type, t.range, {}));
+    return Const::create(t.range, d(t.numStringValue()), c(type, t.range, {}));
   }
   // things like a 1.0 or a(4) that are not unary/binary expressions
   // and have higher precedence than all of them
@@ -75,7 +75,7 @@ struct Parser {
         prefix = Apply::create(range, prefix, parseExpList());
       } else if (L.nextIf('.')) {
         auto t = L.expect(TK_NUMBER);
-        prefix = Select::create(range, prefix, d(t.doubleValue()));
+        prefix = Select::create(range, prefix, d(t.numStringValue()));
       }
     }
 
@@ -304,7 +304,7 @@ struct Parser {
 
  private:
   // short helpers to create nodes
-  TreeRef d(double v) {
+  TreeRef d(const std::string& v) {
     return Number::create(v);
   }
   TreeRef s(const std::string& s) {

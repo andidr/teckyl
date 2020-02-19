@@ -408,12 +408,12 @@ struct Token {
   int kind;
   SourceRange range;
   Token(int kind, const SourceRange& range) : kind(kind), range(range) {}
-  double doubleValue() {
+  std::string numStringValue() {
     assert(TK_NUMBER == kind);
     size_t idx;
     double r = std::stod(text(), &idx);
     assert(idx == range.size());
-    return r;
+    return text();
   }
   std::string text() {
     return range.text();

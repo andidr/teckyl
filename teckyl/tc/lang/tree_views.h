@@ -17,6 +17,8 @@
 #include "tc/lang/error_report.h"
 #include "tc/lang/tree.h"
 
+#include <sstream>
+
 namespace lang {
 
 /// TreeView provides a statically-typed way to access the members of a TreeRef
@@ -449,7 +451,7 @@ struct Select : public TreeView {
     return Ident(subtree(0));
   }
   int index() const {
-    return subtree(1)->doubleValue();
+    return std::stoi(subtree(1)->numValue());
   }
   static TreeRef create(const SourceRange& range, TreeRef name, TreeRef index) {
     return Compound::create('.', range, {name, index});
@@ -460,8 +462,16 @@ struct Const : public TreeView {
   explicit Const(const TreeRef& tree) : TreeView(tree) {
     tree_->expect(TK_CONST, 2);
   }
-  double value() const {
-    return subtree(0)->doubleValue();
+  const std::string& value() const {
+    return subtree(0)->numValue();
+  }
+  template<typename T>
+  T value() const {
+    T res;
+    std::istringstream iss(value());
+    bool success = iss >> res;
+    assert(success);
+    return res;
   }
   TreeRef type() const {
     return subtree(1);

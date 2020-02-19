@@ -284,27 +284,8 @@ public:
   //
   // Throws an exception if the TC type cannot be expressed in MLIR.
   virtual mlir::Value buildConstant(const lang::Const &cst) {
-    int kind = cst.type()->kind();
-    mlir::FileLineColLoc location(loc(cst.range()));
-
-    if (isIntType(kind)) {
-      unsigned num_bits = getIntBits(kind);
-
-      if (isSignedIntType(kind)) {
-        return builder.create<mlir::ConstantIntOp>(
-            location, (int64_t)cst.value(), num_bits);
-      } else {
-        throw mlirgen::SourceException(location,
-                                       "Unsigned integers are not supported");
-      }
-    } else if (isFloatType(kind)) {
-      mlir::FloatType floatType = getFloatType(kind);
-
-      return builder.create<mlir::ConstantFloatOp>(
-          location, llvm::APFloat(cst.value()), floatType);
-    } else {
-      throw mlirgen::SourceException(location, "Unsupported constant type");
-    }
+    mlir::Type targetType = getScalarType(cst.type()->kind());
+    return buildConstant(cst.value(), targetType, builder.getUnknownLoc());
   }
 
   // Builds a MLIR value corresponding to the TC identifier `i`.
@@ -570,29 +551,8 @@ private:
   llvm::ScopedHashTable<llvm::StringRef, mlir::Value> symTab;
   const MLIRGenOptions options;
 
-  // Used for tensor initialization to make sure that the specified
-  // value is representable both as an int64_t and float
+  // Used for tensor initialization
   enum NeutralElement { Zero = 0, One = 1 };
-
-  // Builds an MLIR constant with the same type as `targetType` for
-  // use as the neutral element in a reduction.
-  mlir::Value buildNeutralElementConstant(const mlir::Type &targetType,
-                                          mlir::Location location,
-                                          NeutralElement cst) {
-    if (targetType.isa<mlir::FloatType>()) {
-      mlir::FloatType fType = targetType.cast<mlir::FloatType>();
-
-      return builder.create<mlir::ConstantFloatOp>(
-          location, mlir::APFloat((float)cst), fType);
-    } else if (targetType.isa<mlir::IntegerType>()) {
-      mlir::IntegerType iType = targetType.cast<mlir::IntegerType>();
-
-      return builder.create<mlir::ConstantIntOp>(location, (int64_t)cst,
-                                                 iType.getWidth());
-    } else {
-      throw mlirgen::Exception("Unsupported init type for a reduction");
-    }
-  }
 
   // Builds a loop nest with one loop per iterator from `iterators`
   // using the bounds from `mlirIteratorBounds`.
@@ -633,12 +593,22 @@ private:
   void buildTensorInitialization(mlir::Value tensor, mlir::Location location,
                                  NeutralElement value) {
     mlir::Type elementType = getElementType(tensor);
-    mlir::Value cstVal =
-        buildNeutralElementConstant(elementType, location, value);
     int64_t rank = getRank(tensor);
     std::vector<mlir::IteratorType> iteratorTypes(rank,
                                                   mlir::IteratorType::Parallel);
     std::vector<mlir::edsc::StructuredIndexed> outputs{tensor};
+
+    MLIRValueExprGen exprGen(builder, symTab, filename);
+    mlir::Value cstVal;
+
+    switch (value) {
+    case NeutralElement::Zero:
+      cstVal = exprGen.buildConstant("0", elementType, location);
+      break;
+    case NeutralElement::One:
+      cstVal = exprGen.buildConstant("1", elementType, location);
+      break;
+    }
 
     mlir::edsc::ScopedContext sc(builder, location);
 

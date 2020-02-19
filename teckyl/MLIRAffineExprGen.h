@@ -54,13 +54,8 @@ public:
       return mlir::getAffineDimExpr(iterDimIdx, context);
     }
     case lang::TK_CONST: {
-      int tKind = lang::Const(t).type()->kind();
-      double doubleVal = lang::Const(t).value();
-
-      // FIXME: TC uses double even for 64-bit integers, even though
-      // not all 64-bit integers can be represented by doubles. The
-      // conversion to integer values might be inaccurate.
-      int64_t intVal = static_cast<int64_t>(doubleVal);
+      lang::Const cst(t);
+      int tKind = cst.type()->kind();
 
       if (!isIntType(tKind))
         throw Exception("Constant is not an integer");
@@ -69,12 +64,15 @@ public:
       // constants, so the *unsigned* constants from TC cannot
       // necessarily be respresented correctly. Bail out if the TC
       // constant is too big.
-      if (tKind == lang::TK_UINT64 &&
-          intVal > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-        throw Exception("Unsigned integer constant too big");
+      if (tKind == lang::TK_UINT64) {
+        uint64_t uintval = cst.value<uint64_t>();
+
+        if (uintval >
+            static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+          throw Exception("Unsigned integer constant too big");
       }
 
-      return mlir::getAffineConstantExpr(intVal, context);
+      return mlir::getAffineConstantExpr(cst.value<int64_t>(), context);
     }
     case '+':
       return buildAffineBinaryExpression(t, mlir::AffineExprKind::Add);
