@@ -41,6 +41,41 @@ static inline bool isMLIRFloatType(mlir::Type &t) {
   return t.isF16() || t.isF32() || t.isF64();
 }
 
+// Returns the total size in bits of the float type `t`. Throws an
+// exception if `t` is not a float type.
+static inline unsigned int getMLIRFloatTypeBits(mlir::Type &t) {
+  if (t.isF16())
+    return 16;
+  if (t.isF32())
+    return 32;
+  if (t.isF64())
+    return 64;
+
+  throw Exception("Not a float type");
+}
+
+// Returns the size in bits of the mantissa of the float type
+// `t`. Throws an exception if `t` is not a float type.
+static inline unsigned int getMLIRFloatTypeMantissaBits(mlir::Type &t) {
+  if (t.isF16())
+    return 10;
+  if (t.isF32())
+    return 23;
+  if (t.isF64())
+    return 52;
+
+  throw Exception("Not a float type");
+}
+
+// Returns the total size in bits of the integer type `t`. Throws an
+// exception if `t` is not a integer type.
+static inline unsigned int getMLIRIntTypeBits(mlir::Type &t) {
+  if (t.isa<mlir::IntegerType>())
+    return t.cast<mlir::IntegerType>().getWidth();
+
+  throw Exception("Not an integer type");
+}
+
 static inline bool isMLIRIntType(mlir::Type &t) {
   return t.isInteger(8) || t.isInteger(16) || t.isInteger(32) ||
          t.isInteger(64);
@@ -179,6 +214,83 @@ protected:
   }
 };
 
+// Convert the value `v` to type `t` if such a conversion is possible
+// and lossless. Returns true if the conversion is successful,
+// otherwise false.
+static bool convertValue(mlir::OpBuilder &builder, mlir::Value &v, mlir::Type t,
+                         mlir::Location location) {
+  mlir::Type tV = v.getType();
+
+  if (tV == t)
+    return true;
+
+  if (isMLIRFloatType(tV) && isMLIRFloatType(t) &&
+      getMLIRFloatTypeBits(tV) < getMLIRFloatTypeBits(t)) {
+    v = builder.create<mlir::FPExtOp>(location, v, t);
+    return true;
+  } else if (isMLIRIntType(tV) && isMLIRIntType(t) &&
+             getMLIRIntTypeBits(tV) < getMLIRIntTypeBits(t)) {
+    // TODO: When adding support for unsigned integers, use
+    // ZeroExtendIOp
+    v = builder.create<mlir::SignExtendIOp>(location, v, t);
+    return true;
+  } else if (isMLIRIntType(tV) && isMLIRFloatType(t)) {
+    unsigned int intBits = getMLIRIntTypeBits(tV);
+    unsigned int mantissaBits = getMLIRFloatTypeMantissaBits(t);
+
+    if (intBits <= mantissaBits) {
+      // FIXME: This is only correct for signed integers
+      v = builder.create<mlir::SIToFPOp>(location, v, t);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Align types of two values: If a and b are of different types, the
+// function attempts to convert the type with less precision to the
+// type with higher precision. Only lossless conversions are
+// performed.
+//
+// Upon success, the function returns true (i.e., if the types were
+// already aligned or if an alignment was successful). Otherwise, the
+// function returns false.
+static bool alignTypes(mlir::OpBuilder &builder, mlir::Value &a, mlir::Value &b,
+                       mlir::Location location) {
+  mlir::Type tA = a.getType();
+  mlir::Type tB = b.getType();
+
+  if (tA == tB)
+    return true;
+
+  if (isMLIRFloatType(tA) && isMLIRFloatType(tB)) {
+    if (getMLIRFloatTypeBits(tA) < getMLIRFloatTypeBits(tB))
+      return convertValue(builder, a, tB, location);
+    else
+      return convertValue(builder, b, tA, location);
+  } else if (isMLIRIntType(tA) && isMLIRIntType(tB)) {
+    if (getMLIRIntTypeBits(tA) < getMLIRIntTypeBits(tB))
+      return convertValue(builder, a, tB, location);
+    else
+      return convertValue(builder, b, tA, location);
+  } else if (isMLIRIntType(tA) && isMLIRFloatType(tB)) {
+    unsigned int intBits = getMLIRIntTypeBits(tA);
+    unsigned int mantissaBits = getMLIRFloatTypeMantissaBits(tB);
+
+    if (intBits <= mantissaBits)
+      return convertValue(builder, a, tB, location);
+  } else if (isMLIRFloatType(tA) && isMLIRIntType(tB)) {
+    unsigned int intBits = getMLIRIntTypeBits(tB);
+    unsigned int mantissaBits = getMLIRFloatTypeMantissaBits(tA);
+
+    if (intBits <= mantissaBits)
+      return convertValue(builder, b, tA, location);
+  }
+
+  return false;
+}
+
 // Builds a binary operation from `lhs` and `rhs` associated to the
 // specified location. If both values are float values, the newly
 // created operation is `FOpTyp` and if both values are integer
@@ -188,7 +300,7 @@ template <typename FOpTy, typename IOpTy>
 mlir::Value buildBinaryExprFromValues(mlir::OpBuilder &builder, mlir::Value lhs,
                                       mlir::Value rhs,
                                       mlir::FileLineColLoc location) {
-  if (lhs.getType() != rhs.getType()) {
+  if (!alignTypes(builder, lhs, rhs, location)) {
     std::stringstream ss;
 
     ss << "Operands for binary expression have different types: "
@@ -700,6 +812,20 @@ private:
       throw mlirgen::Exception("Unsupported operator");
     }
 
+    mlir::Type elementType = getElementType(symTab.lookup(c.ident().name()));
+
+    if (!convertValue(exprGen.getBuilder(), assignmentVal, elementType,
+                      loc(c.range()))) {
+      std::stringstream ss;
+
+      ss << "Operand for assignment cannot be converted to element type of the "
+            "target tensor: "
+         << "cannot convert " << getTypeAsString(assignmentVal.getType())
+         << " to " << getTypeAsString(elementType);
+
+      throw mlirgen::SourceException(loc(c.range()), ss.str());
+    }
+
     exprGen.buildIndexStoreExpr(assignmentVal, c.ident(), c.indices());
 
     // Restore insertion point to point after the outermost loop
@@ -818,6 +944,19 @@ private:
         break;
       default:
         throw mlirgen::Exception("Unsupported operator");
+      }
+
+      mlir::Type elementType = getElementType(tensor);
+
+      if (!convertValue(gen.getBuilder(), res, elementType, loc(c.range()))) {
+        std::stringstream ss;
+
+        ss << "Operand for assignment cannot be converted to element type of "
+              "the target tensor: "
+           << "cannot convert " << getTypeAsString(res.getType()) << " to "
+           << getTypeAsString(elementType);
+
+        throw mlirgen::SourceException(loc(c.range()), ss.str());
       }
 
       mlir::edsc::intrinsics::linalg_yield{res};
