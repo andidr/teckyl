@@ -42,3 +42,12 @@ the examples in `tests/inputs`, e.g., by running
   ``./bin/teckyl -emit=mlir ../tests/inputs/mv_explicit.tc``
 
 from the build directory.
+
+## Running the test suite
+
+Teckyl comes with a set of test cases in `tests/inputs`. To run all
+tests, execute the script `run_tests.sh` from the build directory,
+e.g.,
+
+  * ``cd build``
+  * ``../run_tests.sh``
