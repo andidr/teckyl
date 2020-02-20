@@ -135,6 +135,8 @@ protected:
   // Translates a TC float type to an MLIR float type
   mlir::FloatType getFloatType(int kind) {
     switch (kind) {
+    case lang::TK_DOUBLE:
+      return builder.getF64Type();
     case lang::TK_FLOAT:
       return builder.getF32Type();
     case lang::TK_FLOAT16:
@@ -150,6 +152,7 @@ protected:
 
   mlir::Type getScalarType(int kind) {
     switch (kind) {
+    case lang::TK_DOUBLE:
     case lang::TK_FLOAT:
     case lang::TK_FLOAT16:
     case lang::TK_FLOAT32:

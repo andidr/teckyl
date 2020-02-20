@@ -1,0 +1,4 @@
+def mv(double(M,K) A, double(K) x) -> (double(M) C)
+{
+  C(i) +=! A(i,k) * x(k) where i in 0:M, k in 0:K
+}
