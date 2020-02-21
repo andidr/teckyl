@@ -523,6 +523,21 @@ public:
       mlir::Value lowBound = buildExpr(constraint.start());
       mlir::Value upBound = buildExpr(constraint.end());
 
+      // Convert bounds to Index values if necessary.
+      //
+      // FIXME: Index has a platform-dependent width, which may be
+      // lower than the width of the converted integer type and
+      // silently truncate the value, leading to incorrect code.
+      if (!lowBound.getType().isIndex()) {
+        lowBound = builder.create<mlir::IndexCastOp>(
+            loc(constraint.range()), builder.getIndexType(), lowBound);
+      }
+
+      if (!upBound.getType().isIndex()) {
+        upBound = builder.create<mlir::IndexCastOp>(
+            loc(constraint.range()), builder.getIndexType(), upBound);
+      }
+
       mlirBounds.insert({iteratorName, {lowBound, upBound}});
     }
 
