@@ -105,13 +105,13 @@ collectExplicitIteratorBounds(const lang::Comprehension &c) {
 // Collects the set of parameters from the signature of `def` that
 // define the sizes of dimensions. for example, for the signature
 //
-//   def foo(float(M, N) A, float(K) x)
+//   def foo(float(M, N) A, float(K) x) -> (float(P, Q) D)
 //
-// The function would return a set composed of M, N and K.
+// The function would return a set composed of M, N, K, P and Q.
 static std::set<std::string> collectDimSizeParams(const lang::Def &def) {
   std::set<std::string> sizeParams;
 
-  for (const lang::Param &param : def.params()) {
+  auto collectFromParam = [&](const lang::Param &param) {
     for (const lang::TreeRef &dim : param.tensorType().dims()) {
       if (dim->kind() == lang::TK_IDENT) {
         lang::Ident ident(dim);
@@ -119,7 +119,13 @@ static std::set<std::string> collectDimSizeParams(const lang::Def &def) {
         sizeParams.insert(ident.name());
       }
     }
-  }
+  };
+
+  for (const lang::Param &param : def.params())
+    collectFromParam(param);
+
+  for (const lang::Param &param : def.returns())
+    collectFromParam(param);
 
   return sizeParams;
 }
