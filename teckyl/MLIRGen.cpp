@@ -588,9 +588,6 @@ public:
     // Add parameters for symbolic tensor dimensions
     std::set<std::string> sizeParams = collectDimSizeParams(def);
 
-    for (size_t i = 0; i < sizeParams.size(); i++)
-      argTypes.push_back(builder.getIndexType());
-
     // Add tensor parameters
     for (lang::Param param : def.params()) {
       lang::TensorType tensorType = param.tensorType();
@@ -646,28 +643,49 @@ public:
     mlir::FuncOp function(funcOp);
     mlir::Block &entryBlock = *function.addEntryBlock();
 
+    builder.setInsertionPointToStart(&entryBlock);
+
     // Add all arguments to symbol table
     {
       size_t i = 0;
 
       // Add parameters for symbolic tensor dimensions to symbol table
-      for (const std::string &sizeParam : sizeParams)
-        symTab.insert(sizeParam, funcOp.getArgument(i++));
+      //
+      // The sizes are not passed explicitly as function arguments,
+      // but correspond to the dimensions of the input / output
+      // tensors. For each size constant, choose the dimension of one
+      // tensor as the defining representative.
+      auto checkOrDefineSizeSymbol = [&](const lang::Param &param,
+                                         mlir::BlockArgument &arg) {
+        size_t dimIdx = 0;
+        for (const lang::TreeRef &dim : param.tensorType().dims()) {
+          lang::Ident ident(dim);
 
-      // Add input tensors
+          if (symTab.count(ident.name()) == 0) {
+            // Use this as a repesentative for the size dimension
+            mlir::Value sizeParamVal =
+                builder.create<mlir::DimOp>(loc(def.range()), arg, dimIdx);
+            symTab.insert(ident.name(), sizeParamVal);
+          }
+
+          dimIdx++;
+        }
+      };
+
+      // Process inputs
       for (lang::Param param : def.params()) {
         mlir::BlockArgument arg = funcOp.getArgument(i++);
         symTab.insert(param.ident().name(), arg);
+        checkOrDefineSizeSymbol(param, arg);
       }
 
-      // Add outputs
+      // Process outputs
       for (lang::Param param : def.returns()) {
         mlir::BlockArgument arg = funcOp.getArgument(i++);
         symTab.insert(param.ident().name(), arg);
+        checkOrDefineSizeSymbol(param, arg);
       }
     }
-
-    builder.setInsertionPointToStart(&entryBlock);
 
     for (const lang::Comprehension &comprehension : def.statements())
       buildComprehension(comprehension);
