@@ -1,0 +1,164 @@
+#!/bin/bash
+
+die() {
+    echo "$@" >&2
+    exit 1
+}
+
+die_usage() {
+    echo "Usage: `basename ${BASH_SOURCE[0]}` [OPTIONS] INFILE" >&2
+    echo "Generates an object file from a file with tensor expressions using" >&2
+    echo "the Teckyl frontend" >&2
+    echo >&2
+    echo "Options:" >&2
+    echo "  --force-std-loops          Force use of standard loops during MLIR generation" >&2
+    echo "  -g                         Generate debug symbols" >&2
+    echo "  -m MODE, --mode=MODE       Set the output mode to MODE" >&2
+    echo "                             asm: generate assembly code" >&2
+    echo "                             llvmir: generate LLVM IR" >&2
+    echo "                             object: generate object file [default]" >&2
+    echo "  -o OUTFILE                 Write to output to OUTFILE instead of the default" >&2
+    echo "                             output file (same as the input file, but .tc suffix" >&2
+    echo "                             replaced with .ll, .S or .o depending on the output" >&2
+    echo "                             mode)" >&2
+    echo "  -O0, -O1, -O2, -O3         Optimization level passed to the assembler" >&2
+    echo "" >&2
+    echo "Environment variables:" >&2
+    echo "  AS                         Set the assembler to use [default: as]" >&2
+    echo "  LLC                        Set the llc binary to use [default: llc]" >&2
+    echo "  MLIR_OPT                   Set the mlir opt binary [default: mlir-opt]" >&2
+    echo "  MLIR_TRANSLATE             Set the mlir translate binary [default: mlir-translate]" >&2
+    echo "  TECKYL                     Set the teckyl binary [default: teckyl]" >&2
+    echo "  TMPDIR                     Set directory for temporary files [default: /tmp]" >&2
+    exit 0
+}
+
+catormv() {
+    local INFILE="$1"
+    local OUTFILE="$2"
+
+    if [ "$OUTFILE" = "-" ]
+    then
+	cat "$INFILE"
+    else
+	mv "$INFILE" "$OUTFILE"
+    fi
+}
+
+INFILE=""
+OUTFILE=""
+DEBUGSYMS=""
+MODE="object"
+
+LLC=${LLC-llc}
+MLIR_OPT=${MLIR_OPT-mlir-opt}
+MLIR_TRANSLATE=${MLIR_TRANSLATE-mlir-translate}
+
+TECKYL=${TECKYL-teckyl}
+TECKYL_OPTS=()
+
+AS=${AS-as}
+AS_OPTS=()
+
+TMPDIR=${TMPDIR-/tmp}
+
+while [ $# -gt 0 ]
+do
+    case "$1" in
+	--force-std-loops)
+	    TECKYL_OPTS+=("--force-std-loops")
+	    ;;
+	-g)
+	    DEBUGSYMS="-g"
+	    ;;
+	-h|--help)
+	    die_usage
+	    ;;
+	-m|--mode)
+	    [ ! -z "$2" ] || die "Mode parameter requires a value"
+	    MODE="$2"
+	    shift
+	    ;;
+	--mode=*)
+	    MODE="${1#--mode=}"
+	    shift
+	    ;;
+	-m*)
+	    MODE="${1#-m}"
+	    shift
+	    ;;
+	-o)
+	    [ ! -z "$2" ] || die "Parameter -o requires a file name"
+	    OUTFILE="$2"
+	    shift
+	    ;;
+	-O[0123])
+	    AS_OPTS+=("$1")
+	    ;;
+	-*)
+	    die "Unknown option '$1'"
+	    ;;
+	*)
+	    [ -z "$INFILE" ] || die "Multiple input files specified"
+	    INFILE="$1"
+	    ;;
+    esac
+
+    shift
+done
+
+case "$MODE" in
+    asm|llvmir|object)
+	;;
+    *)
+	die "Invalid mode '$MODE'"
+	;;
+esac
+
+if [ -z "$OUTFILE" ]
+then
+    BASEFILE=$(basename "$INFILE" .tc)
+    INDIR=$(dirname "$INFILE")
+
+    case "$MODE" in
+	asm)
+	    OUTFILE="$INDIR/$BASEFILE.S"
+	    ;;
+	llvmir)
+	    OUTFILE="$INDIR/$BASEFILE.ll"
+	    ;;
+	object)
+	    OUTFILE="$INDIR/$BASEFILE.o"
+	    ;;
+    esac
+fi
+
+TMPFILE_IR=$(mktemp "$TMPDIR/XXXXXXXXXX.ll")
+TMPFILE_ASM=$(mktemp "$TMPDIR/XXXXXXXXXX.S")
+TMPFILE_OBJ=$(mktemp "$TMPDIR/XXXXXXXXXX.S")
+trap "{ rm -f \"$TMPFILE_IR\" \"$TMPFILE_ASM\"  \"$TMPFILE_OBJ\" ; }" EXIT
+
+set -Eeuo pipefail
+
+"$TECKYL" -emit=mlir "$INFILE" "${TECKYL_OPTS[@]}" 2>&1 | \
+    "$MLIR_OPT" --convert-linalg-to-loops --convert-loop-to-std -convert-std-to-llvm | \
+    "$MLIR_TRANSLATE" --mlir-to-llvmir -o "$TMPFILE_IR"
+
+[ "$MODE" = "llvmir" ] && \
+    catormv "$TMPFILE_IR" "$OUTFILE" && \
+    exit $?
+
+"$LLC" "$TMPFILE_IR" -o "$TMPFILE_ASM"
+
+[ "$MODE" = "asm" ] && \
+    catormv "$TMPFILE_ASM" "$OUTFILE" && \
+    exit $?
+
+"$AS" -o "$TMPFILE_OBJ" -c "$TMPFILE_ASM" $DEBUGSYMS "${AS_OPTS[@]}"
+
+if [ "$OUTFILE" = "-" ]
+then
+    objdump -d "$TMPFILE_OBJ"
+else
+    mv  "$TMPFILE_OBJ" "$OUTFILE"
+fi
