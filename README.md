@@ -51,3 +51,11 @@ e.g.,
 
   * ``cd build``
   * ``../run_tests.sh``
+
+Some of the tests require `mlir-opt`, `mlir-translate` and `llc`. To
+build these binaries, execute
+
+  * ``LIBRARY_PATH="$PWD/llvm-project/llvm/lib" make -j mlir-opt mlir-translate llc``
+
+in the build directory before launching `run_tests.sh`.
+

@@ -9,11 +9,18 @@ print_green() {
     [ -t 1 ] && echo -e "\e[32m$@\e[39m" || echo "$@"
 }
 
+print_yellow() {
+    [ -t 1 ] && echo -e "\e[93m$@\e[39m" || echo "$@"
+}
+
 print_red() {
     [ -t 1 ] && echo -e "\e[31m$@\e[39m" || echo "$@"
 }
 
-TECKYL="./bin/teckyl"
+export TECKYL="$PWD/bin/teckyl"
+export LLC="$PWD/llvm-project/llvm/bin/llc"
+export MLIR_OPT="$PWD/llvm-project/llvm/bin/mlir-opt"
+export MLIR_TRANSLATE="$PWD/llvm-project/llvm/bin/mlir-translate"
 
 [ -x "$TECKYL" ] || \
     die "Could not find teckyl binary." \
@@ -68,3 +75,46 @@ do
 	fi
     done
 done
+
+if [ -x "$MLIR_OPT" -a -x "$MLIR_TRANSLATE" ]
+then
+    for TEST_DIR in "$BASE_DIR"/tests/exec/*
+    do
+	TEST_BASE=$(basename "$TEST_DIR")
+
+	if [ "$TEST_BASE" != "lib" ]
+	then
+	    printf "Running execution test %s... " "$TEST_BASE"
+
+	    mkdir -p "tests/exec/$TEST_BASE" || \
+		die "Could not create test directory"
+
+	    export BUILDDIR="$PWD/tests/exec/$TEST_BASE"
+
+	    make -C "$TEST_DIR" > "$TMP_LOGFILE" 2>&1
+
+	    if [ $? -ne 0 ]
+	    then
+	        print_red "build failed."
+		echo
+		cat "$TMP_LOGFILE" >&2
+		exit 1
+	    fi
+
+	    make -C "$TEST_DIR" run > "$TMP_LOGFILE" 2>&1
+
+	    if [ $? -ne 0 ]
+	    then
+	        print_red "failed."
+		echo
+		cat "$TMP_LOGFILE" >&2
+		exit 1
+	    else
+		print_green "success"
+	    fi
+	fi
+    done
+else
+    print_yellow "Binaries mlir-opt and mlir-translate haven't been built." \
+		 "Skipping execution tests."
+fi
