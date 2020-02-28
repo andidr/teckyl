@@ -13,6 +13,17 @@ struct vec_f2d {
 	int64_t strides[2];
 };
 
+/* Generates a comma-separated list of arguments from the fields of a
+ * 2d float memref */
+#define VEC2D_ARGS(v)                           \
+  (v)->allocatedPtr,                            \
+    (v)->alignedPtr,                            \
+    (v)->offset,                                \
+    (v)->sizes[0],                              \
+    (v)->sizes[1],                              \
+    (v)->strides[0],                            \
+    (v)->strides[1]
+
 /* Allocates and initializes a 2d float memref. Returns 0 on success,
  * otherwise 1.
  */
