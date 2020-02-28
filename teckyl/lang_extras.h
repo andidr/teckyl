@@ -99,7 +99,7 @@ collectExplicitIteratorBounds(const lang::Comprehension &c) {
     bounds.insert({name, range});
   }
 
-  return std::move(bounds);
+  return bounds;
 }
 
 // Collects the set of parameters from the signature of `def` that

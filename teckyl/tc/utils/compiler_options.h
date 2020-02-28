@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
+#ifndef TECKYL_TC_UTILS_COMPILER_OPTIONS_H_
+#define TECKYL_TC_UTILS_COMPILER_OPTIONS_H_
 
 namespace tc {
 
@@ -37,3 +38,5 @@ class CompilerOptions {
 };
 
 } // namespace tc
+
+#endif // TECKYL_TC_UTILS_COMPILER_OPTIONS_H_

@@ -89,7 +89,6 @@ void dumpMLIR(const std::map<std::string, lang::Def>& tcs)
 }
 
 int main(int argc, char **argv) {
-  tc::CompilerOptions options;
   std::map<std::string, lang::Def> tcs;
 
   llvm::cl::ParseCommandLineOptions(argc, argv, "teckyl frontend\n");

@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
+#ifndef TECKYL_TC_LANG_BUILTINS_H_
+#define TECKYL_TC_LANG_BUILTINS_H_
 
 #include <unordered_map>
 
@@ -96,3 +97,6 @@ std::unordered_map<std::string, size_t> builtin_functions({
 
 } // namespace
 } // namespace lang
+
+#endif // TECKYL_TC_LANG_BUILTINS_H_
+

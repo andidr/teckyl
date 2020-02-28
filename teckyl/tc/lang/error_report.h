@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
+#ifndef TECKYL_TC_LANG_ERROR_REPORT_H_
+#define TECKYL_TC_LANG_ERROR_REPORT_H_
 
 #include "tc/lang/tree.h"
 #include "tc/utils/compiler_options.h"
@@ -63,3 +64,6 @@ const ErrorReport& operator<<(const ErrorReport& e, const T& t) {
         << __FILE__ << ":" << __LINE__ << ": assertion failed: " << #cond; \
   }
 } // namespace lang
+
+#endif // TECKYL_TC_LANG_ERROR_REPORT_H_
+
