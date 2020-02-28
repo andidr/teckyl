@@ -835,19 +835,24 @@ private:
 
     // Build expression for RHS of assignment
     mlir::Value rhsVal = exprGen.buildExpr(c.rhs());
-    mlir::Value accu = exprGen.buildIndexLoadExpr(c.ident(), c.indices());
+    mlir::Value accu;
     mlir::Value assignmentVal;
 
     switch (c.assignment()->kind()) {
     case lang::TK_PLUS_EQ:
     case lang::TK_PLUS_EQ_B:
+      accu = exprGen.buildIndexLoadExpr(c.ident(), c.indices());
       assignmentVal = buildBinaryExprFromValues<mlir::AddFOp, mlir::AddIOp>(
           exprGen.getBuilder(), rhsVal, accu, loc(c.range()));
       break;
     case lang::TK_TIMES_EQ:
     case lang::TK_TIMES_EQ_B:
+      accu = exprGen.buildIndexLoadExpr(c.ident(), c.indices());
       assignmentVal = buildBinaryExprFromValues<mlir::MulFOp, mlir::MulIOp>(
           exprGen.getBuilder(), rhsVal, accu, loc(c.range()));
+      break;
+    case '=':
+      assignmentVal = rhsVal;
       break;
     default:
       llvm_unreachable("Unsupported operator");
@@ -984,6 +989,9 @@ private:
         res = buildBinaryExprFromValues<mlir::MulFOp, mlir::MulIOp>(
             gen.getBuilder(), rhsVal, accu, loc(c.range()));
         break;
+      case '=':
+	res = rhsVal;
+	break;
       default:
         llvm_unreachable("Unsupported operator");
       }
