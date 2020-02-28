@@ -1,0 +1,4 @@
+def sum2(float32(N) x, float32(N) y) -> (float32(N) o)
+{
+  o(i) = x(i) * y(i) where i in 0:N
+}
