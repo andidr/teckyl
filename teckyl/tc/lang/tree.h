@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
+#ifndef TECKYL_TC_LANG_TREE_H_
+#define TECKYL_TC_LANG_TREE_H_
 
 #include <functional>
 #include <memory>
@@ -126,8 +127,8 @@ struct String : public Tree {
   std::string value_;
 };
 struct Number : public Tree {
-  Number(const std::string& value_, const std::string& suffix) :
-    Tree(TK_NUMBER), value_(value_), suffix_(suffix_) {}
+  Number(const std::string& value, const std::string& suffix) :
+    Tree(TK_NUMBER), value_(value), suffix_(suffix) {}
   virtual const std::string& numValue() const override {
     return value_;
   }
@@ -288,3 +289,6 @@ static inline std::ostream& operator<<(std::ostream& out, TreeRef t) {
   return out << pretty_tree(t);
 }
 } // namespace lang
+
+#endif // TECKYL_TC_LANG_TREE_H_
+

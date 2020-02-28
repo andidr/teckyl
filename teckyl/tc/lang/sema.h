@@ -13,7 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
+#ifndef TECKYL_TC_SEMA_H_
+#define TECKYL_TC_SEMA_H_
 
 #include <unordered_set>
 
@@ -719,3 +720,6 @@ struct Sema {
   tc::CompilerOptions compilerOptions;
 };
 } // namespace lang
+
+#endif // TECKYL_TC_SEMA_H_
+

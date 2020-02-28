@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
+#ifndef TECKYL_TC_LANG_LEXER_H_
+#define TECKYL_TC_LANG_LEXER_H_
+
 #include <assert.h>
 #include <algorithm>
 #include <iostream>
@@ -460,8 +462,7 @@ struct Token {
   std::string numStringValue() {
     assert(TK_NUMBER == kind);
     size_t idx;
-    double r = std::stod(text(), &idx);
-
+    std::stod(text(), &idx);
     assert(idx > 0);
 
     if(idx < range.size()) {
@@ -571,3 +572,5 @@ struct Lexer {
   SharedParserData& shared;
 };
 } // namespace lang
+
+#endif // TECKYL_TC_LANG_LEXER_H_

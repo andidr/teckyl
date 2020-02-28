@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
+#ifndef TECKYL_TC_LANG_PARSER_H_
+#define TECKYL_TC_LANG_PARSER_H_
+
 #include "tc/lang/lexer.h"
 #include "tc/lang/tree.h"
 #include "tc/lang/tree_views.h"
@@ -349,3 +351,6 @@ struct Parser {
   SharedParserData& shared;
 };
 } // namespace lang
+
+#endif // TECKYL_TC_LANG_PARSER_H_
+

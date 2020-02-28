@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma once
+#ifndef TECKYL_TC_LANG_TREE_VIEWS_H_
+#define TECKYL_TC_LANG_TREE_VIEWS_H_
+
 #include "tc/lang/error_report.h"
 #include "tc/lang/tree.h"
 
@@ -469,8 +471,8 @@ struct Const : public TreeView {
   T value() const {
     T res;
     std::istringstream iss(value());
-    bool success = iss >> res;
-    assert(success);
+    iss >> res;
+    assert(!iss.fail());
     return res;
   }
   TreeRef type() const {
@@ -524,3 +526,6 @@ struct Exists : public TreeView {
 };
 
 } // namespace lang
+
+#endif // TECKYL_TC_LANG_TREE_VIEWS_H_
+

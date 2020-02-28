@@ -6,13 +6,13 @@
 #include <llvm/ADT/ScopedHashTable.h>
 #include <mlir/Dialect/AffineOps/AffineOps.h>
 #include <mlir/Dialect/Linalg/EDSC/Builders.h>
+#include <mlir/Dialect/Linalg/EDSC/Intrinsics.h>
 #include <mlir/Dialect/LoopOps/LoopOps.h>
 #include <mlir/Dialect/StandardOps/Ops.h>
 #include <mlir/IR/AffineExpr.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Function.h>
 #include <mlir/IR/StandardTypes.h>
-
 #include <tc/lang/sema.h>
 
 namespace teckyl {
@@ -829,7 +829,6 @@ private:
 
     // Build expression for RHS of assignment
     mlir::Value rhsVal = exprGen.buildExpr(c.rhs());
-    mlir::Type rhsType = rhsVal.getType();
     mlir::Value accu = exprGen.buildIndexLoadExpr(c.ident(), c.indices());
     mlir::Value assignmentVal;
 
@@ -1076,7 +1075,7 @@ private:
       }
     }
 
-    return std::move(ranks);
+    return ranks;
   }
 };
 
