@@ -3,6 +3,14 @@
 
 #include <string>
 
+#ifndef THROW_OR_ASSERT
+#ifdef COMPILE_WITH_EXCEPTIONS
+#define THROW_OR_ASSERT(X) throw X
+#else
+#define THROW_OR_ASSERT(X) llvm_unreachable(X.what())
+#endif // COMPILE_WITH_EXCEPTIONS
+#endif // THROW_OR_ASSERT
+
 namespace teckyl {
 class Exception {
 public:
@@ -10,6 +18,7 @@ public:
   virtual ~Exception() = default;
 
   const std::string &getMessage() const { return msg; }
+  const char *what() const noexcept { return msg.c_str(); }
 
 protected:
   const std::string msg;

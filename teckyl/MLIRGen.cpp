@@ -4,6 +4,7 @@
 #include "lang_extras.h"
 
 #include <llvm/ADT/ScopedHashTable.h>
+#include <llvm/Support/ErrorHandling.h>
 #include <mlir/Dialect/AffineOps/AffineOps.h>
 #include <mlir/Dialect/Linalg/EDSC/Builders.h>
 #include <mlir/Dialect/Linalg/EDSC/Intrinsics.h>
@@ -16,6 +17,7 @@
 #include <tc/lang/sema.h>
 
 namespace teckyl {
+
 static const char *getTypeAsString(mlir::Type t) {
   if (t.isF16())
     return "f16";
@@ -33,8 +35,7 @@ static const char *getTypeAsString(mlir::Type t) {
     return "i64";
   else if (t.isIndex())
     return "index";
-
-  throw mlirgen::Exception("Cannot determine name for type");
+  llvm_unreachable("Cannot determine name for type");
 }
 
 static inline bool isMLIRFloatType(mlir::Type &t) {
@@ -50,8 +51,7 @@ static inline unsigned int getMLIRFloatTypeBits(mlir::Type &t) {
     return 32;
   if (t.isF64())
     return 64;
-
-  throw Exception("Not a float type");
+  llvm_unreachable("Not a float type");
 }
 
 // Returns the size in bits of the mantissa of the float type
@@ -64,7 +64,7 @@ static inline unsigned int getMLIRFloatTypeMantissaBits(mlir::Type &t) {
   if (t.isF64())
     return 52;
 
-  throw Exception("Not a float type");
+  llvm_unreachable("Not a float type");
 }
 
 // Returns the total size in bits of the integer type `t`. Throws an
@@ -73,7 +73,7 @@ static inline unsigned int getMLIRIntTypeBits(mlir::Type &t) {
   if (t.isa<mlir::IntegerType>())
     return t.cast<mlir::IntegerType>().getWidth();
 
-  throw Exception("Not an integer type");
+  llvm_unreachable("Not an integer type");
 }
 
 static inline bool isMLIRIntType(mlir::Type &t) {
@@ -146,7 +146,7 @@ protected:
     case lang::TK_FLOAT64:
       return builder.getF64Type();
     default:
-      throw mlirgen::Exception("Not a float type");
+      llvm_unreachable("Not a float type");
     }
   }
 
@@ -167,7 +167,7 @@ protected:
     case lang::TK_INT64:
       return builder.getIntegerType(64);
     default:
-      throw mlirgen::Exception("Unsupported type");
+      llvm_unreachable("Unsupported type");
     }
   }
 
@@ -183,14 +183,14 @@ protected:
   }
 
   // Returns the rank of the type of `v`, if `v` is a MemRef
-  // value. Otherwise an exception is thrown.
+  // value. Otherwise an error occurs.
   int64_t getRank(const mlir::Value &v) {
     mlir::Type type = v.getType();
 
     if (type.isa<mlir::MemRefType>())
       return type.cast<mlir::MemRefType>().getRank();
     else
-      throw mlirgen::Exception("Can only determine rank for MemRef");
+      llvm_unreachable("Can only determine rank for MemRef");
   }
 
   // Translates a TC tensor type into an MLIR tensor type. If the
@@ -298,7 +298,7 @@ static bool alignTypes(mlir::OpBuilder &builder, mlir::Value &a, mlir::Value &b,
 // specified location. If both values are float values, the newly
 // created operation is `FOpTyp` and if both values are integer
 // values, `IOpTy` is instantiated. If the values have different types
-// or if they are neither floats nor integers, an exception is thrown.
+// or if they are neither floats nor integers, an error occurs.
 template <typename FOpTy, typename IOpTy>
 mlir::Value buildBinaryExprFromValues(mlir::OpBuilder &builder, mlir::Value lhs,
                                       mlir::Value rhs,
@@ -310,7 +310,8 @@ mlir::Value buildBinaryExprFromValues(mlir::OpBuilder &builder, mlir::Value lhs,
        << getTypeAsString(lhs.getType()) << " and "
        << getTypeAsString(rhs.getType());
 
-    throw mlirgen::SourceException(location, ss.str());
+    mlirgen::SourceException err(location, ss.str());
+    THROW_OR_ASSERT(err);
   }
 
   mlir::Type resType = lhs.getType();
@@ -320,8 +321,9 @@ mlir::Value buildBinaryExprFromValues(mlir::OpBuilder &builder, mlir::Value lhs,
   } else if (isMLIRIntType(resType)) {
     return builder.create<IOpTy>(location, lhs, rhs);
   } else {
-    throw mlirgen::SourceException(
+    mlirgen::SourceException err(
         location, "Cannot create binary operation: Unsupported operand type");
+    THROW_OR_ASSERT(err);
   }
 }
 
@@ -346,7 +348,7 @@ public:
   // operation of type `FOpTy` if the operands are floats or an
   // operation of type `IOpTy` if the operands are integers. If the
   // operands have different types or if they are neither integers nor
-  // floats, an exception is thrown.
+  // floats, an error occurs.
   template <typename FOpTy, typename IOpTy>
   mlir::Value buildBinaryExpr(const lang::TreeRef &t) {
     return buildBinaryExprFromValues<FOpTy, IOpTy>(
@@ -374,7 +376,7 @@ public:
             location, llvm::APFloat(llvm::APFloat::IEEEdouble(), cst),
             floatType);
       } else {
-        throw mlirgen::Exception(
+        llvm_unreachable(
             "Could not build constant: Unknown float type");
       }
     } else if (targetType.isa<mlir::IntegerType>()) {
@@ -383,13 +385,15 @@ public:
       std::istringstream iss(cst);
       int64_t icst;
 
-      if (!(iss >> icst))
-        throw mlirgen::Exception("Could not build integer constant");
+      if (!(iss >> icst)) {
+        mlirgen::Exception err("Could not build integer constant");
+        THROW_OR_ASSERT(err);
+      }
 
       return builder.create<mlir::ConstantIntOp>(location, icst,
                                                  iType.getWidth());
     } else {
-      throw mlirgen::Exception(
+      llvm_unreachable(
           "Could not build constant: Unsupported target type");
     }
   }
@@ -476,7 +480,8 @@ public:
          << getTypeAsString(valueToStore.getType())
          << " to a RHS value of type " << getTypeAsString(elementType);
 
-      throw mlirgen::SourceException(location, ss.str());
+      mlirgen::SourceException err(location, ss.str());
+      THROW_OR_ASSERT(err);
     }
 
     return ret;
@@ -504,7 +509,8 @@ public:
       std::stringstream ss;
       ss << "Unknown tree type: '" << (int)t->kind() << "'";
       std::cerr << ss.str() << std::endl;
-      throw mlirgen::SourceException(loc(t->range()), ss.str());
+      mlirgen::SourceException err(loc(t->range()), ss.str());
+      THROW_OR_ASSERT(err);
     }
   }
 
@@ -607,7 +613,8 @@ public:
 
         ss << "Type for output tensor " << name << " not specified";
 
-        throw mlirgen::SourceException(loc(param.range()), ss.str());
+        mlirgen::SourceException err(loc(param.range()), ss.str());
+        THROW_OR_ASSERT(err);
       }
 
       // Check that used dimensions correspond to the declared
@@ -617,13 +624,12 @@ public:
 
         if (declaredDims != outputRanks[name]) {
           std::stringstream ss;
-
           ss << "Output tensor " << name << " has been declared with "
              << declaredDims << " dimensions, "
              << "but is indexed with " << outputRanks[name] << " "
              << "dimensions";
-
-          throw mlirgen::Exception(ss.str());
+          mlirgen::Exception err(ss.str());
+          THROW_OR_ASSERT(err);
         }
       }
 
@@ -844,7 +850,7 @@ private:
           exprGen.getBuilder(), rhsVal, accu, loc(c.range()));
       break;
     default:
-      throw mlirgen::Exception("Unsupported operator");
+      llvm_unreachable("Unsupported operator");
     }
 
     mlir::Type elementType = getElementType(symTab.lookup(c.ident().name()));
@@ -858,7 +864,8 @@ private:
          << "cannot convert " << getTypeAsString(assignmentVal.getType())
          << " to " << getTypeAsString(elementType);
 
-      throw mlirgen::SourceException(loc(c.range()), ss.str());
+      mlirgen::SourceException err(loc(c.range()), ss.str());
+      THROW_OR_ASSERT(err);
     }
 
     exprGen.buildIndexStoreExpr(assignmentVal, c.ident(), c.indices());
@@ -978,7 +985,7 @@ private:
             gen.getBuilder(), rhsVal, accu, loc(c.range()));
         break;
       default:
-        throw mlirgen::Exception("Unsupported operator");
+        llvm_unreachable("Unsupported operator");
       }
 
       mlir::Type elementType = getElementType(tensor);
@@ -991,7 +998,8 @@ private:
            << "cannot convert " << getTypeAsString(res.getType()) << " to "
            << getTypeAsString(elementType);
 
-        throw mlirgen::SourceException(loc(c.range()), ss.str());
+        mlirgen::SourceException err(loc(c.range()), ss.str());
+        THROW_OR_ASSERT(err);
       }
 
       mlir::edsc::intrinsics::linalg_yield{res};
@@ -1031,7 +1039,7 @@ private:
     } else if (c.assignment()->kind() == lang::TK_MAX_EQ_B ||
                c.assignment()->kind() == lang::TK_MIN_EQ_B) {
       // TODO: Support max and min
-      throw Exception("Unsupported reduction");
+      llvm_unreachable("Unsupported reduction");
     }
 
     // Build code for actual computation
@@ -1048,8 +1056,8 @@ private:
 
   // Returns a map with one entry per output tensor specifying their
   // ranks for the TC definition `def`. If the same tensor is indexed
-  // with multiple ranks (e.g., C(i, j) = ... and C(i, j, k) = ..., an
-  // exception is thrown.
+  // with multiple ranks (e.g., C(i, j) = ... and C(i, j, k) = ..., a fatal
+  // error occurs.
   std::map<std::string, size_t> collectOutputRanks(const lang::Def &def) {
     std::set<std::string> outParamNames;
     std::map<std::string, size_t> ranks;
@@ -1066,8 +1074,9 @@ private:
 
         if (it != ranks.end()) {
           if (it->second != rank) {
-            throw mlirgen::Exception("Multiple ranks found for output tensor " +
-                                     name);
+            mlirgen::Exception err("Multiple ranks found for output tensor " +
+                                   name);
+            THROW_OR_ASSERT(err);
           }
         } else {
           ranks.insert({name, rank});

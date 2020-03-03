@@ -35,10 +35,11 @@ bool isSymbolic(const lang::TreeRef &t, const std::set<std::string> &syms) {
     return false;
   }
   default:
-    throw Exception("Unsupported kind '" + lang::kindToString(t->kind()) + "'");
+      ;
   }
 
-  return false;
+  Exception err("Unsupported kind '" + lang::kindToString(t->kind()) + "'");
+  llvm_unreachable(err.what());
 }
 
 // Conservative check whether e is an affine expression with respect
@@ -84,7 +85,7 @@ bool isAffine(const lang::TreeRef &e, const std::set<std::string> &syms) {
 
   case '/':
     if (e->trees().size() != 2)
-      throw Exception("Division with more than two operands found");
+      llvm_unreachable("Division with more than two operands found");
 
     // Conservatively make sure that the dividend is affine and that
     // there are no symbols in the divisor.
@@ -93,8 +94,11 @@ bool isAffine(const lang::TreeRef &e, const std::set<std::string> &syms) {
     return isAffine(e->tree(0), syms) && !isSymbolic(e->tree(1), syms);
 
   default:
-    throw Exception("Unsupported kind '" + lang::kindToString(e->kind()) + "'");
+      ;
   }
+
+  Exception err("Unsupported kind '" + lang::kindToString(e->kind()) + "'");
+  llvm_unreachable(err.what());
 }
 
 // Conservatively checks whether an expression indexes tensors with
@@ -127,8 +131,11 @@ bool hasNonAffineIndexing(const lang::TreeRef &e,
     return false;
   }
   default:
-    throw Exception("Unsupported kind '" + lang::kindToString(e->kind()) + "'");
+      ;
   }
+
+  Exception err("Unsupported kind '" + lang::kindToString(e->kind()) + "'");
+  llvm_unreachable(err.what());
 }
 } // namespace teckyl
 

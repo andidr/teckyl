@@ -282,10 +282,12 @@ struct TensorType : public TreeView {
   }
   TreeRef scalarTypeTree() const {
     auto scalar_type_ = subtree(0);
-    if (scalar_type_->kind() == TK_IDENT)
-      throw ErrorReport(tree_)
-          << " TensorType has a symbolic ident " << Ident(scalar_type_).name()
+    if (scalar_type_->kind() == TK_IDENT) {
+      ErrorReport err(tree_);
+      err << " TensorType has a symbolic ident " << Ident(scalar_type_).name()
           << " rather than a concrete type";
+      llvm_unreachable(err.what());
+    }
     return scalar_type_;
   }
   int scalarType() const {

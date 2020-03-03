@@ -1,21 +1,21 @@
-#include <llvm/Support/CommandLine.h>
-#include <mlir/IR/Module.h>
-#include <mlir/Analysis/Verifier.h>
-#include <tc/lang/parser.h>
-#include <mlir/IR/Builders.h>
-
-#include <map>
-#include <set>
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <set>
+
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/ErrorHandling.h>
+#include <mlir/Analysis/Verifier.h>
+#include <mlir/IR/Builders.h>
+#include <mlir/IR/Module.h>
+#include <tc/lang/parser.h>
 
 #include "MLIRGen.h"
 
 // Commandline options
-static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
-                                          llvm::cl::desc("<input file>"),
-                                          llvm::cl::init("-"),
-                                          llvm::cl::value_desc("filename"));
+static llvm::cl::opt<std::string> inputFilename(
+    llvm::cl::Positional, llvm::cl::desc("<input file>"), llvm::cl::init("-"),
+    llvm::cl::value_desc("filename"));
 enum Action { None, DumpAST, DumpMLIR };
 
 static llvm::cl::opt<enum Action> emitAction(
@@ -30,12 +30,11 @@ static llvm::cl::opt<bool> forceStdLoops(
     llvm::cl::init(false));
 
 // Reads an entire file into a string
-std::string readFile(const std::string& filename)
-{
+std::string readFile(const std::string& filename) {
   std::ifstream ifs(filename);
 
   return std::string((std::istreambuf_iterator<char>(ifs)),
-		     std::istreambuf_iterator<char>());
+                     std::istreambuf_iterator<char>());
 }
 
 // Parses a string with TCs and returns a map with one entry for each
@@ -56,36 +55,34 @@ std::map<std::string, lang::Def> parse(const std::string& tc) {
 
 // Dumps the AST for a set of kernels to stderr
 void dumpAST(const std::map<std::string, lang::Def>& tcs) {
-  for(const auto& res: tcs)
-    std::cerr << res.second << std::endl;
+  for (const auto& res : tcs) std::cerr << res.second << std::endl;
 }
 
 // Generates an MLIR representation for each TC kernel and dumps a
 // textual reprsentation to stderr.
 //
 // Returns 0 on success or 1 in case of an error.
-void dumpMLIR(const std::map<std::string, lang::Def>& tcs)
-{
+void dumpMLIR(const std::map<std::string, lang::Def>& tcs) {
   mlir::MLIRContext context;
   mlir::ModuleOp module;
   mlir::OpBuilder builder(&context);
   teckyl::MLIRGenOptions options;
 
   options.force_std_loops = forceStdLoops;
-  
+
   module = mlir::ModuleOp::create(builder.getUnknownLoc());
 
-  for(auto& tc : tcs) {
+  for (auto& tc : tcs) {
     mlir::FuncOp f =
-      teckyl::buildMLIRFunction(context, tc.first, tc.second, options);
+        teckyl::buildMLIRFunction(context, tc.first, tc.second, options);
 
-    module.push_back(f);  
+    module.push_back(f);
   }
 
   module.dump();
 
-  if(mlir::failed(mlir::verify(module)))
-    throw teckyl::mlirgen::Exception("Module verification error");
+  if (mlir::failed(mlir::verify(module)))
+    llvm_unreachable("Module verification error");
 }
 
 int main(int argc, char **argv) {
@@ -97,7 +94,10 @@ int main(int argc, char **argv) {
 
   tcs = parse(source);
 
+#ifdef COMPILE_WITH_EXCEPTIONS
   try {
+#endif // COMPILE_WITH_EXCEPTIONS
+
     switch (emitAction) {
     case Action::DumpAST:
       dumpAST(tcs);
@@ -106,15 +106,17 @@ int main(int argc, char **argv) {
       dumpMLIR(tcs);
       break;
     default:
-      throw teckyl::Exception("Unknown action");
+      THROW_OR_ASSERT(teckyl::Exception("Unknown action"));
     }
+
+#ifdef COMPILE_WITH_EXCEPTIONS
   } catch(teckyl::Exception& e) {
     std::cerr << "Error: " << e.getMessage() << std::endl;
     return 1;
   } catch(...) {
     std::cerr << "An unknown error has occured." << std::endl;
     return 1;
-  }
-
-  return 0;
+  }  
+#endif // COMPILE_WITH_EXCEPTIONS
+  
 }

@@ -19,15 +19,27 @@
 #include "tc/lang/tree.h"
 #include "tc/utils/compiler_options.h"
 
+#ifndef THROW_OR_ASSERT
+#ifdef COMPILE_WITH_EXCEPTIONS
+#define THROW_OR_ASSERT(X) throw X
+#else
+#define THROW_OR_ASSERT(X) llvm_unreachable(X.what())
+#endif // COMPILE_WITH_EXCEPTIONS
+#endif // THROW_OR_ASSERT
+
 namespace lang {
 
+#ifdef COMPILE_WITH_EXCEPTIONS
 struct ErrorReport : public std::exception {
+#else
+struct ErrorReport {
+#endif // COMPILE_WITH_EXCEPTIONS
   ErrorReport(const ErrorReport& e)
       : ss(e.ss.str()), context(e.context), the_message(e.the_message) {}
 
   ErrorReport(TreeRef context) : context(context->range()) {}
   ErrorReport(SourceRange range) : context(std::move(range)) {}
-  virtual const char* what() const noexcept override {
+  const char* what() const noexcept {
     std::stringstream msg;
     msg << "\n" << ss.str() << ":\n";
     context.highlight(msg);
@@ -60,8 +72,9 @@ const ErrorReport& operator<<(const ErrorReport& e, const T& t) {
 
 #define TC_ASSERT(ctx, cond)                                               \
   if (!(cond)) {                                                           \
-    throw ::lang::ErrorReport(ctx)                                         \
-        << __FILE__ << ":" << __LINE__ << ": assertion failed: " << #cond; \
+    ::lang::ErrorReport err(ctx);                                          \
+    err << __FILE__ << ":" << __LINE__ << ": assertion failed: " << #cond; \
+    THROW_OR_ASSERT(err);                                                  \
   }
 } // namespace lang
 
