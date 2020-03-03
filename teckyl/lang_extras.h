@@ -64,7 +64,7 @@ static unsigned getIntBits(int kind) {
     return 64;
 
   default:
-    throw mlirgen::Exception("Unexpected kind");
+    llvm_unreachable("Unexpected kind");
   }
 }
 

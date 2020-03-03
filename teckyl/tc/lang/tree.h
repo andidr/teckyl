@@ -21,7 +21,11 @@
 #include <sstream>
 #include <vector>
 
+#include <llvm/ADT/Twine.h>
+#include <llvm/Support/ErrorHandling.h>
 #include "tc/lang/lexer.h"
+
+using llvm::Twine;
 
 namespace lang {
 
@@ -71,16 +75,16 @@ struct Tree : std::enable_shared_from_this<Tree> {
     return true;
   }
   virtual const SourceRange& range() const {
-    throw std::runtime_error("is an Atom");
+    llvm_unreachable("is an Atom");
   }
   virtual const std::string& numValue() const {
-    throw std::runtime_error("not a TK_NUMBER");
+    llvm_unreachable("not a TK_NUMBER");
   }
   virtual const std::string& stringValue() const {
-    throw std::runtime_error("not a TK_STRING");
+    llvm_unreachable("not a TK_STRING");
   }
   virtual bool boolValue() const {
-    throw std::runtime_error("not a TK_BOOL_VALUE");
+    llvm_unreachable("not a TK_BOOL_VALUE");
   }
   virtual const TreeList& trees() const {
     return empty_trees;
@@ -101,7 +105,8 @@ struct Tree : std::enable_shared_from_this<Tree> {
          << " subtrees but found '" << kindToString(kind()) << "' with "
          << trees().size() << " subtrees.\n";
       range().highlight(ss);
-      throw std::runtime_error(ss.str());
+      Twine twine(ss.str());
+      llvm_unreachable(twine.getSingleStringRef().data());
     }
   }
   int kind_;
@@ -190,7 +195,7 @@ static SourceRange mergeRanges(SourceRange c, const TreeList& others) {
       end_ch = trange.endCharacter();
     } else {
       end_line = c.endLine();
-      
+
       if(trange.endCharacter() > c.endCharacter())
 	end_ch = trange.endCharacter();
       else

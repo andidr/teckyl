@@ -58,7 +58,7 @@ public:
       int tKind = cst.type()->kind();
 
       if (!isIntType(tKind))
-        throw Exception("Constant is not an integer");
+        llvm_unreachable("Constant is not an integer");
 
       // FIXME: AffineExpr uses *signed* 64-bit integers for
       // constants, so the *unsigned* constants from TC cannot
@@ -68,8 +68,10 @@ public:
         uint64_t uintval = cst.value<uint64_t>();
 
         if (uintval >
-            static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-          throw Exception("Unsigned integer constant too big");
+            static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+          Exception e("Unsigned integer constant too big");
+          THROW_OR_ASSERT(e);
+        }
       }
 
       return mlir::getAffineConstantExpr(cst.value<int64_t>(), context);
@@ -83,7 +85,7 @@ public:
     case '/':
       return buildAffineBinaryExpression(t, mlir::AffineExprKind::FloorDiv);
     default:
-      throw Exception("Unsupported operator for affine expression");
+      llvm_unreachable("Unsupported operator for affine expression");
     }
   }
 
@@ -94,7 +96,7 @@ protected:
   mlir::AffineExpr buildAffineBinaryExpression(const lang::TreeRef &t,
                                                mlir::AffineExprKind kind) {
     if (t->trees().size() != 2)
-      throw Exception("Binary expression with an operator count != 2");
+      llvm_unreachable("Binary expression with an operator count != 2");
 
     mlir::AffineExpr lhs = buildAffineExpression(t->tree(0));
     mlir::AffineExpr rhs = buildAffineExpression(t->tree(1));
@@ -105,7 +107,7 @@ protected:
   // creating an addition with -1 as a factor for the second operand.
   mlir::AffineExpr buildAffineSubtraction(const lang::TreeRef &t) {
     if (t->trees().size() != 2)
-      throw Exception("Subtraction expression with an operator count != 2");
+      llvm_unreachable("Subtraction expression with an operator count != 2");
 
     mlir::AffineExpr lhs = buildAffineExpression(t->tree(0));
     mlir::AffineExpr rhsSub = buildAffineExpression(t->tree(1));

@@ -56,14 +56,16 @@ struct TypeInfo {
 
 #undef TYPE_INFO_OPTION
       default:
-        throw ErrorReport(scalar_type)
-            << "Unhandled TC scalar type: " << scalar_type;
+        ErrorReport err(scalar_type);
+        err << "Unhandled TC scalar type: " << scalar_type;
+        llvm_unreachable(err.what());
     }
 
     if (code_ == Code::Float && bits_ == 16) {
-      throw ErrorReport(scalar_type)
-          << "Half precision floating point not supported "
+      ErrorReport err(scalar_type);
+      err << "Half precision floating point not supported "
           << "until we can make NVRTC include system headers";
+      llvm_unreachable(err.what());
     }
   }
   int toScalarToken() const {
@@ -103,7 +105,7 @@ struct TypeInfo {
         }
     }
 
-    throw std::runtime_error("Unknown type info?");
+    llvm_unreachable("Unknown type info?");
   }
   Code code() const {
     return code_;
@@ -157,9 +159,10 @@ static inline TreeRef match_types(TreeRef a, TreeRef b) {
     return Compound::create(
         TypeInfo(TypeInfo::Int, bits).toScalarToken(), a->range(), {});
   } else {
-    throw ErrorReport(b) << "Could not match types: "
-                         << kindToString(ta.toScalarToken()) << ", "
-                         << kindToString(tb.toScalarToken());
+    ErrorReport err(b);
+    err << "Could not match types: " << kindToString(ta.toScalarToken())
+        << ", " << kindToString(tb.toScalarToken());
+    llvm_unreachable(err.what());
   }
 }
 
@@ -178,8 +181,9 @@ struct Sema {
 
   TreeRef typeOfExpr(TreeRef ref) {
     if (expr_to_type.count(ref) == 0) {
-      throw ErrorReport(ref)
-          << "INTERNAL ERROR: type not in map for expression " << ref;
+      ErrorReport err(ref);
+      err << "INTERNAL ERROR: type not in map for expression " << ref;
+      llvm_unreachable(err.what());
     }
     return expr_to_type.at(ref);
   }
@@ -193,7 +197,9 @@ struct Sema {
 
   TensorType expectTensorType(TreeRef loc, TreeRef typ) {
     if (typ->kind() != TK_TENSOR_TYPE) {
-      throw ErrorReport(loc) << "expected a tensor but found a scalar";
+      ErrorReport err(loc);
+      err << "expected a tensor but found a scalar";
+      llvm_unreachable(err.what());
     }
     return TensorType(typ);
   }
@@ -210,16 +216,19 @@ struct Sema {
 
   TreeRef expectIntegral(TreeRef e) {
     if (TypeInfo(typeOfExpr(e)).code() == TypeInfo::Float) {
-      throw ErrorReport(e) << " expected integral type but found "
-                           << kindToString(typeOfExpr(e)->kind());
+      ErrorReport err(e);
+      err << " expected integral type but found "
+          << kindToString(typeOfExpr(e)->kind());
+      llvm_unreachable(err.what());
     }
     return e;
   }
 
   void expectBool(TreeRef anchor, int token) {
     if (token != TK_BOOL) {
-      throw ErrorReport(anchor)
-          << "expected boolean but found " << kindToString(token);
+      ErrorReport err(anchor);
+      llvm_unreachable(err.what());
+      err << "expected boolean but found " << kindToString(token);
     }
   }
 
@@ -248,8 +257,9 @@ struct Sema {
             /* && live_input_names.count(a.name().name()) == 0 */) {
           // We want to allow access to inputs in this context, but it
           // isn't yet supported
-          throw ErrorReport(exp)
-              << "tensor accesses cannot be used in this context";
+          ErrorReport err(exp);
+          err << "tensor accesses cannot be used in this context";
+          llvm_unreachable(err.what());
         }
 
         // also handle built-in functions log, exp, etc.
@@ -257,8 +267,10 @@ struct Sema {
         if (builtin_functions.count(ident.name()) > 0) {
           auto nargs = builtin_functions[ident.name()];
           if (nargs != a.arguments().size()) {
-            throw ErrorReport(exp) << "expected " << nargs << " but found "
-                                   << a.arguments().size();
+            ErrorReport err(exp);
+            err << "expected " << nargs << " but found "
+                << a.arguments().size();
+            llvm_unreachable(err.what());
           }
           auto args = checkExp(a.arguments(), allow_access);
           // [BUILTIN TYPE MATCHING]
@@ -272,9 +284,10 @@ struct Sema {
         }
         auto type = expectTensorType(ident, lookup(ident, true));
         if (type.dims().size() != a.arguments().size()) {
-          throw ErrorReport(a)
-              << "expected " << type.dims().size() << " dimensions but found "
+          ErrorReport err(a);
+          err << "expected " << type.dims().size() << " dimensions but found "
               << a.arguments().size() << " dimensions.";
+          llvm_unreachable(err.what());
         }
         auto checked = checkExp(a.arguments(), allow_access);
         for (auto t : checked->trees()) {
@@ -290,8 +303,9 @@ struct Sema {
         if (type->kind() == TK_TENSOR_TYPE) {
           auto tt = TensorType(type);
           if (tt.dims().size() != 0) {
-            throw ErrorReport(exp)
-                << "expected a scalar but found a tensor expression.";
+            ErrorReport err(exp);
+            err << "expected a scalar but found a tensor expression.";
+            llvm_unreachable(err.what());
           }
           return checkExp(
               Apply::create(
@@ -361,7 +375,9 @@ struct Sema {
         return exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
       } break;
       default:
-        throw ErrorReport(exp) << "NYI - semantic checking for " << exp;
+        ErrorReport err(exp);
+        err << "NYI - semantic checking for " << exp;
+        llvm_unreachable(err.what());
     }
   }
 
@@ -393,8 +409,7 @@ struct Sema {
 
     // Everything has to be input or output. Keep track of the variables that
     // are either input/output. We will check that the statements have variables
-    // from this list. If not, then throw error that temporaries are not yet
-    // implemented.
+    // from this list.
     for (auto p : func.params()) {
       nonTemporaries.insert(p.ident().name());
       inputParameters.insert(p.ident().name());
@@ -509,7 +524,9 @@ struct Sema {
     // check that the input is not used for output - inputs are immutable
     std::string name = stmt.ident().name();
     if (inputParameters.count(name) > 0) {
-      throw ErrorReport(stmt_) << "TC inputs are immutable";
+      ErrorReport err(stmt_);
+      err << "TC inputs are immutable";
+      llvm_unreachable(err.what());
     }
 
     // make dimension variables for each dimension of the output tensor
@@ -537,17 +554,19 @@ struct Sema {
       auto tt = TensorType(output_annotation->second);
       auto matched_type = match_types(scalar_type, tt.scalarTypeTree());
       if (tt.scalarTypeTree()->kind() != matched_type->kind()) {
-        throw ErrorReport(stmt)
-            << " attempting to assign type "
+        ErrorReport err(stmt);
+        err << " attempting to assign type "
             << kindToString(scalar_type->kind()) << " to narrower type "
             << kindToString(tt.scalarTypeTree()->kind())
             << " without an explicit cast";
+        llvm_unreachable(err.what());
       }
       if (tt.dims().size() != stmt.indices().size()) {
-        throw ErrorReport(stmt)
-            << " tensor defined with " << stmt.indices().size()
+        ErrorReport err(stmt);
+        err << " tensor defined with " << stmt.indices().size()
             << " dimensions but declared as an output with " << tt.dims().size()
             << " dimensions.";
+        llvm_unreachable(err.what());
       }
     }
 
@@ -591,9 +610,11 @@ struct Sema {
     }
 
     if (reduction_variables.size() > 0 && stmt.assignment()->kind() == '=') {
-      throw ErrorReport(stmt) << "this statement includes reduction variable '"
-                              << Ident(reduction_variables.back()).name()
-                              << "' but does not specify a reduction.";
+      ErrorReport err(stmt);
+      err << "this statement includes reduction variable '"
+          << Ident(reduction_variables.back()).name()
+          << "' but does not specify a reduction.";
+      llvm_unreachable(err.what());
     }
     TreeRef reduction_variable_list =
         List::create(stmt.ident().range(), std::move(reduction_variables));
@@ -608,9 +629,10 @@ struct Sema {
         reduction_variable_list);
 
     if (nonTemporaries.count(stmt.ident().name()) == 0) {
-      throw ErrorReport(stmt)
-          << stmt.ident().name()
-          << " is not listed as an input or output to this function. Temporaries tensors are not yet implemented";
+      ErrorReport err(stmt);
+      err << stmt.ident().name() << " is not listed as an input or output to "
+          << "this function. Temporaries tensors are not yet implemented";
+      llvm_unreachable(err.what());
     }
 
     // clear the per-statement environments to get ready for the next statement
@@ -667,12 +689,15 @@ struct Sema {
   insert(Env& the_env, Ident ident, TreeRef value, bool must_be_undefined) {
     std::string name = ident.name();
     if (builtin_functions.count(name) > 0) {
-      throw ErrorReport(ident)
-          << "'" << name << "' is a built-in function and cannot be redefined";
+      ErrorReport err(ident);
+      err << "'" << name << "' is a built-in function and cannot be redefined";
+      llvm_unreachable(err.what());
     }
     auto it = the_env.emplace(name, value);
     if (must_be_undefined && !it.second) {
-      throw ErrorReport(ident) << name << " already defined";
+      ErrorReport err(ident);
+      err << name << " already defined";
+      llvm_unreachable(err.what());
     }
   }
 
@@ -689,8 +714,9 @@ struct Sema {
     std::string name = ident.name();
     auto it = the_env.find(name);
     if (required && it == the_env.end()) {
-      throw ErrorReport(ident)
-          << "undefined variable " << name << " used here.";
+      ErrorReport err(ident);
+      err << "undefined variable " << name << " used here.";
+      llvm_unreachable(err.what());
     }
     return it == the_env.end() ? nullptr : it->second;
   }

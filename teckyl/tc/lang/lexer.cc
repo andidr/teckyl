@@ -31,8 +31,10 @@ std::string kindToString(int kind) {
     TC_FORALL_TOKEN_KINDS(DEFINE_CASE)
 #undef DEFINE_CASE
     default:
-      throw std::runtime_error("unknown kind: " + std::to_string(kind));
+      ;
   }
+  std::runtime_error err("unknown kind: " + std::to_string(kind));
+  THROW_OR_ASSERT(err);
 }
 
 std::string kindToToken(int kind) {
@@ -41,14 +43,18 @@ std::string kindToToken(int kind) {
   switch (kind) {
 #define DEFINE_CASE(tok, _, str)                                       \
   case tok:                                                            \
-    if (!strcmp(str, ""))                                              \
-      throw std::runtime_error("No token for: " + kindToString(kind)); \
+    if (!strcmp(str, "")) {                                            \
+      std::runtime_error err("No token for: " + kindToString(kind));   \
+      THROW_OR_ASSERT(err);                                            \
+    }                                                                  \
     return str;
     TC_FORALL_TOKEN_KINDS(DEFINE_CASE)
 #undef DEFINE_CASE
     default:
-      throw std::runtime_error("unknown kind: " + std::to_string(kind));
+      ;
   }
+  std::runtime_error err("unknown kind: " + std::to_string(kind));
+  THROW_OR_ASSERT(err);
 }
 
 SharedParserData& sharedParserData() {
@@ -57,8 +63,9 @@ SharedParserData& sharedParserData() {
 }
 
 void Lexer::reportError(const std::string& what, const Token& t) {
-  throw ErrorReport(t.range)
-      << "expected " << what << " but found '" << t.kindString() << "' here:";
+  ErrorReport err(t.range);
+  err << "expected " << what << " but found '" << t.kindString() << "' here:";
+  THROW_OR_ASSERT(err);
 }
 
 } // namespace lang
