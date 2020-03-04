@@ -1,0 +1,4 @@
+def foo(float32(N+2) x) -> (float32(N) o)
+{
+  o(i) +=! x(i) where i in 0:N
+}

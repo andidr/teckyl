@@ -1,0 +1,4 @@
+def foo(float32(128) x) -> (float32(128) o)
+{
+  o(i) +=! x(i) where i in 0:128
+}

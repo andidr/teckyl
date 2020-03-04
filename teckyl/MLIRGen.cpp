@@ -665,13 +665,15 @@ public:
                                          mlir::BlockArgument &arg) {
         size_t dimIdx = 0;
         for (const lang::TreeRef &dim : param.tensorType().dims()) {
-          lang::Ident ident(dim);
+          if (dim->kind() == lang::TK_IDENT) {
+            lang::Ident ident(dim);
 
-          if (symTab.count(ident.name()) == 0) {
-            // Use this as a repesentative for the size dimension
-            mlir::Value sizeParamVal =
-                builder.create<mlir::DimOp>(loc(def.range()), arg, dimIdx);
-            symTab.insert(ident.name(), sizeParamVal);
+            if (symTab.count(ident.name()) == 0) {
+              // Use this as a repesentative for the size dimension
+              mlir::Value sizeParamVal =
+                  builder.create<mlir::DimOp>(loc(def.range()), arg, dimIdx);
+              symTab.insert(ident.name(), sizeParamVal);
+            }
           }
 
           dimIdx++;
