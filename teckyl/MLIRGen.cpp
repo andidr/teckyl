@@ -680,11 +680,18 @@ public:
         }
       };
 
+      // Adds an entry for the tensor to `paramSpecs`, mapping tensor
+      // names to their specification
+      auto addParamSpec = [&](const lang::Param &param) {
+        paramSpecs.insert({param.ident().name(), param.tensorType()});
+      };
+
       // Process inputs
       for (lang::Param param : def.params()) {
         mlir::BlockArgument arg = funcOp.getArgument(i++);
         symTab.insert(param.ident().name(), arg);
         checkOrDefineSizeSymbol(param, arg);
+        addParamSpec(param);
       }
 
       // Process outputs
@@ -692,6 +699,7 @@ public:
         mlir::BlockArgument arg = funcOp.getArgument(i++);
         symTab.insert(param.ident().name(), arg);
         checkOrDefineSizeSymbol(param, arg);
+        addParamSpec(param);
       }
     }
 
@@ -705,6 +713,7 @@ public:
 
 private:
   llvm::ScopedHashTable<llvm::StringRef, mlir::Value> symTab;
+  std::map<const std::string, lang::TensorType> paramSpecs;
   const MLIRGenOptions options;
 
   // Used for tensor initialization
@@ -746,26 +755,66 @@ private:
 
   // Builds a linalg.generic operation that initializes the specified
   // tensor with the specified value.
-  void buildTensorInitialization(mlir::Value tensor, mlir::Location location,
-                                 NeutralElement value) {
-    mlir::Type elementType = getElementType(tensor);
-    int64_t rank = getRank(tensor);
+  void buildTensorInitialization(const std::string &tensorName,
+                                 mlir::Value tensorVal,
+                                 const lang::ListView<lang::Ident> &indexes,
+                                 mlir::Location location, NeutralElement value,
+                                 const IteratorRangeMap &langItBounds) {
+    MLIRValueExprGen exprGen(builder, symTab, filename);
+    mlir::Type elementType = getElementType(tensorVal);
+    size_t rank = getRank(tensorVal);
     std::vector<mlir::IteratorType> iteratorTypes(rank,
                                                   mlir::IteratorType::Parallel);
-    std::vector<mlir::edsc::StructuredIndexed> outputs{tensor};
+    mlir::Value output;
 
-    MLIRValueExprGen exprGen(builder, symTab, filename);
-    mlir::Value cstVal;
+    // Check if the bounds for the iterators used to index the output
+    // tensor are equal to the size of the indexed dimensions.
+    //
+    // If this is the case, just use the output tensor as the output
+    // memref for the linalg.generic operation.
+    //
+    // If the iterator ranges do not match the output tensor
+    // dimensions, create a view with a one-to-one mapping from the
+    // iteration domain to the tensor elements.
+    if (comprehensionLHSIteratorDomainsMatchTensorDimensions(
+            paramSpecs, langItBounds, tensorName, indexes)) {
+      output = tensorVal;
+    } else {
+      std::vector<mlir::Value> offsets;
+      std::vector<mlir::Value> sizes;
+      std::vector<mlir::Value> strides{
+          rank, exprGen.buildConstant("1", builder.getIndexType(), location)};
 
-    switch (value) {
-    case NeutralElement::Zero:
-      cstVal = exprGen.buildConstant("0", elementType, location);
-      break;
-    case NeutralElement::One:
-      cstVal = exprGen.buildConstant("1", elementType, location);
-      break;
+      for (const lang::Ident &index : indexes) {
+        mlir::Value lb =
+            exprGen.buildExpr(langItBounds.at(index.name()).start());
+        mlir::Value ub = exprGen.buildExpr(langItBounds.at(index.name()).end());
+
+        offsets.push_back(lb);
+
+        // lb and ub are of type index; convert to integer, subtract and
+        // convert back to index
+        //
+        // FIXME: Size of Index is platform-dependent, so this might be
+        // a lossy conversion
+        mlir::Value lbInt = builder.create<mlir::IndexCastOp>(
+            location, builder.getIntegerType(64), lb);
+        mlir::Value ubInt = builder.create<mlir::IndexCastOp>(
+            location, builder.getIntegerType(64), ub);
+
+        mlir::Value sizeInt =
+            builder.create<mlir::SubIOp>(location, ubInt, lbInt);
+        mlir::Value size = builder.create<mlir::IndexCastOp>(
+            location, builder.getIndexType(), sizeInt);
+
+        sizes.push_back(size);
+      }
+
+      output = builder.create<mlir::SubViewOp>(location, tensorVal, offsets,
+                                               sizes, strides);
     }
 
+    std::vector<mlir::edsc::StructuredIndexed> outputs{output};
     mlir::edsc::ScopedContext sc(builder, location);
 
     auto regionBuilder = [&](mlir::ArrayRef<mlir::BlockArgument> arg) {
@@ -785,7 +834,7 @@ private:
       mlir::edsc::intrinsics::linalg_yield{cstVal};
     };
 
-    mlir::edsc::ValueHandle O(tensor);
+    mlir::edsc::ValueHandle O(output);
     mlir::edsc::StructuredIndexed SO(O);
 
     // Build one-to-one mapping for dimensions
@@ -818,13 +867,12 @@ private:
   // compitation without the initialization broadcasting the neutral
   // element for default-initialized reductions). This is the fallback
   // routine for comprehensions with possibly non-affine accesses.
-  void buildNonAffineReductionCore(const lang::Comprehension &c,
-                                   mlir::Value tensor,
-                                   const std::vector<std::string> &iteratorsSeq,
-                                   mlir::Location location) {
+  void buildLoopReductionCore(const lang::Comprehension &c, mlir::Value tensor,
+                              const std::vector<std::string> &iteratorsSeq,
+                              const IteratorRangeMap &langItBounds,
+                              mlir::Location location) {
     MLIRValueExprGen exprGen(builder, symTab, filename);
 
-    IteratorRangeMap langItBounds = collectExplicitIteratorBounds(c);
     IteratorBoundsMap mlirItBounds =
         exprGen.translateIteratorBounds(langItBounds);
 
@@ -887,7 +935,7 @@ private:
   // accesses. The check for affine accesses must be performed prior
   // to the call.
   void
-  buildAffineReductionCore(const lang::Comprehension &c, mlir::Value tensor,
+  buildLinalgReductionCore(const lang::Comprehension &c, mlir::Value tensor,
                            const std::map<std::string, IteratorKind> &iterators,
                            const std::vector<std::string> &iteratorsSeq,
                            mlir::Location location) {
@@ -1028,9 +1076,15 @@ private:
 
     std::map<std::string, IteratorKind> iterators = collectIterators(c, symTab);
     std::set<std::string> iteratorSet;
+    std::set<std::string> iteratorSetReduction;
+    IteratorRangeMap langItBounds = collectExplicitIteratorBounds(c);
 
-    for (const std::pair<std::string, IteratorKind> &it : iterators)
+    for (const std::pair<std::string, IteratorKind> &it : iterators) {
       iteratorSet.insert(it.first);
+
+      if (it.second == IteratorKind::RHSOnly)
+        iteratorSetReduction.insert(it.first);
+    }
 
     // Decide on an (arbitrary) order for the iterators for the loop
     // nest
@@ -1039,27 +1093,59 @@ private:
     for (std::pair<std::string, IteratorKind> it : iterators)
       iteratorsSeq.push_back(it.first);
 
-    mlir::Value outTensorVal = symTab.lookup(c.ident().name());
+    const std::string &outTensorName = c.ident().name();
+    mlir::Value outTensorVal = symTab.lookup(outTensorName);
 
     // Initialize output tensor for default-initialized reductions
     if (c.assignment()->kind() == lang::TK_PLUS_EQ_B) {
-      buildTensorInitialization(outTensorVal, startLoc, NeutralElement::Zero);
+      buildTensorInitialization(outTensorName, outTensorVal, c.indices(),
+                                startLoc, NeutralElement::Zero, langItBounds);
     } else if (c.assignment()->kind() == lang::TK_TIMES_EQ_B) {
-      buildTensorInitialization(outTensorVal, startLoc, NeutralElement::One);
+      buildTensorInitialization(outTensorName, outTensorVal, c.indices(),
+                                startLoc, NeutralElement::One, langItBounds);
     } else if (c.assignment()->kind() == lang::TK_MAX_EQ_B ||
                c.assignment()->kind() == lang::TK_MIN_EQ_B) {
       // TODO: Support max and min
       llvm_unreachable("Unsupported reduction");
     }
 
-    // Build code for actual computation
+    // Build code for the actual computation
     //
-    // For the non-affine case: just a loop nest
-    // For the affine case: a linalg.generic operation
-    if (options.force_std_loops || hasNonAffineIndexing(c.rhs(), iteratorSet)) {
-      buildNonAffineReductionCore(c, outTensorVal, iteratorsSeq, startLoc);
+    // Check if the reduction of the comprehension is eligible for a
+    // linalg.generic operation. The requirements are:
+    //
+    // 1. All tensor indexing must be affine.
+    //
+    // 2. The existence of a direct mapping between iteration
+    //    dimensions and tensor accesses. This requires that each
+    //    iterator of the comprehension is referenced at least once
+    //    for direct indexing. For example, this is the case for:
+    //
+    //      C(i, j) = A(i) + A(i / 2) + B(k)
+    //
+    //    since i, j, and k are all used for direct indexing at least
+    //    once, while:
+    //
+    //      C(i, j) = A(i) + A(i / 2) + B(k+5)
+    //
+    //    would not meet the condition above, since k is never
+    //    directly used index a tensor dimension.
+    //
+    // 3. Since the iteration domains are directly derived from the
+    //    tensors dimensions, the bounds for the comprehension for
+    //    iterators with direct indexing must match the size of the
+    //    respective tensor dimension.
+    //
+    // Conditions 2 and 3 might be relaxed in the future in cases,
+    // where it is possible to create subviews which restore the
+    // conditions.
+    if (options.force_std_loops || hasNonAffineIndexing(c.rhs(), iteratorSet) ||
+        !allIteratorsIndexTensorDimension(iteratorSetReduction, c.rhs()) ||
+        !directIteratorDomainsMatchTensorDimensions(c, paramSpecs)) {
+      buildLoopReductionCore(c, outTensorVal, iteratorsSeq, langItBounds,
+                             startLoc);
     } else {
-      buildAffineReductionCore(c, outTensorVal, iterators, iteratorsSeq,
+      buildLinalgReductionCore(c, outTensorVal, iterators, iteratorsSeq,
                                startLoc);
     }
   }
