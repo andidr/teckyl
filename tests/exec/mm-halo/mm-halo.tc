@@ -1,0 +1,4 @@
+def mm_halo(float(6,9) A, float(9,12) B) -> (float(6,12) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 1z:5z, k in 1z:8z, j in 1z:11z
+}
