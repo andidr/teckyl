@@ -166,6 +166,8 @@ protected:
       return builder.getIntegerType(32);
     case lang::TK_INT64:
       return builder.getIntegerType(64);
+    case lang::TK_SIZET:
+      return builder.getIndexType();
     default:
       llvm_unreachable("Unsupported type");
     }
@@ -392,6 +394,18 @@ public:
 
       return builder.create<mlir::ConstantIntOp>(location, icst,
                                                  iType.getWidth());
+    } else if (targetType.isa<mlir::IndexType>()) {
+      std::istringstream iss(cst);
+      int64_t icst;
+
+      // FIXME: Check if constant fits into platform-dependent index
+      // type
+      if (!(iss >> icst)) {
+        mlirgen::Exception err("Could not build index constant");
+        THROW_OR_ASSERT(err);
+      }
+
+      return builder.create<mlir::ConstantIndexOp>(location, icst);
     } else {
       llvm_unreachable(
           "Could not build constant: Unsupported target type");

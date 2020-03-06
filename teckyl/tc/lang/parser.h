@@ -63,6 +63,8 @@ struct Parser {
       type = TK_INT32;
     else if (suffix == "i64")
       type = TK_INT64;
+    else if (suffix == "z")
+      type = TK_SIZET;
     else if (t.text().find('.') != std::string::npos ||
              t.text().find('e') != std::string::npos) {
       type = TK_FLOAT32;

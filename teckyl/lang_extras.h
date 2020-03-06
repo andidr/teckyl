@@ -165,6 +165,7 @@ static inline bool isZeroConstant(const lang::Const &c) {
   case lang::TK_UINT16:
   case lang::TK_UINT32:
   case lang::TK_UINT64:
+  case lang::TK_SIZET:
     return c.value<uint64_t>() == 0;
   case lang::TK_FLOAT16:
   case lang::TK_FLOAT32:

@@ -78,6 +78,7 @@ namespace lang {
   _(TK_INT16, "int16", "int16")                  \
   _(TK_INT32, "int32", "int32")                  \
   _(TK_INT64, "int64", "int64")                  \
+  _(TK_SIZET, "size_t", "size_t")                \
   _(TK_FLOAT16, "float16", "float16")            \
   _(TK_FLOAT32, "float32", "float32")            \
   _(TK_FLOAT64, "float64", "float64")            \
@@ -217,7 +218,7 @@ struct SharedParserData {
     if (*endptr != '\0') {
       static const char* suffixes[] = {"i8", "i16", "i32", "i64",
 				       "u8", "u16", "u32", "u64",
-				       "f16", "f32", "f64"};
+				       "z", "f16", "f32", "f64"};
 
 #define ARRAY_SIZE(a) ((sizeof(a) / sizeof(a[0])))
 
@@ -350,6 +351,7 @@ struct SharedParserData {
       case TK_INT16:
       case TK_INT32:
       case TK_INT64:
+      case TK_SIZET:
       case TK_FLOAT16:
       case TK_FLOAT32:
       case TK_FLOAT64:
@@ -471,7 +473,7 @@ struct Token {
       assert(suffix == "f16" || suffix == "f32" || suffix == "f64" ||
              suffix == "u8" || suffix == "u16" || suffix == "u32" ||
              suffix == "u64" || suffix == "i8" || suffix == "i16" ||
-             suffix == "i32" || suffix == "i64");
+             suffix == "i32" || suffix == "i64" || suffix == "z");
     } else {
       assert(idx == range.size());
     }
@@ -479,8 +481,9 @@ struct Token {
     return text().substr(0, idx);
   }
   // Returns the suffix for the number literal (either "u8", "u16",
-  // "u32", "u64", "i8", "i16", "i32", "i64", "f16", "f32", "f64" or
-  // the empty string "" if no suffix has been specified originally.
+  // "u32", "u64", "i8", "i16", "i32", "i64", "f16", "f32", "f64", "z"
+  // or the empty string "" if no suffix has been specified
+  // originally.
   std::string numSuffix() {
     assert(TK_NUMBER == kind);
     size_t idx;
