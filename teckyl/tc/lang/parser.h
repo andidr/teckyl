@@ -23,7 +23,7 @@
 namespace lang {
 
 struct Parser {
-  Parser(const std::string& str) : L(str), shared(sharedParserData()) {}
+  Parser(const std::string &str) : L(str), shared(sharedParserData()) {}
 
   TreeRef parseIdent() {
     auto t = L.expect(TK_IDENT);
@@ -112,14 +112,15 @@ struct Parser {
         prefix = Apply::create(range, prefix, parseExpList());
       } else if (L.nextIf('.')) {
         auto t = L.expect(TK_NUMBER);
-        prefix = Select::create(range, prefix, d(t.numStringValue(), t.numSuffix()));
+        prefix =
+            Select::create(range, prefix, d(t.numStringValue(), t.numSuffix()));
       }
     }
 
     return prefix;
   }
-  TreeRef
-  parseTrinary(TreeRef cond, const SourceRange& range, int binary_prec) {
+  TreeRef parseTrinary(TreeRef cond, const SourceRange &range,
+                       int binary_prec) {
     auto true_branch = parseExp();
     L.expect(':');
     auto false_branch = parseExp(binary_prec);
@@ -162,8 +163,8 @@ struct Parser {
     }
     return prefix;
   }
-  TreeRef
-  parseList(int begin, int sep, int end, std::function<TreeRef(int)> parse) {
+  TreeRef parseList(int begin, int sep, int end,
+                    std::function<TreeRef(int)> parse) {
     auto r = L.cur().range;
     L.expect(begin);
     TreeList elements;
@@ -220,8 +221,8 @@ struct Parser {
   TreeRef parseParam() {
     if (L.cur().kind == TK_IDENT) {
       auto ident = parseIdent();
-      return Param::create(
-          ident->range(), ident, c(TK_INFERRED, ident->range(), {}));
+      return Param::create(ident->range(), ident,
+                           c(TK_INFERRED, ident->range(), {}));
     }
     auto typ = parseType();
     auto ident = parseIdent();
@@ -245,20 +246,20 @@ struct Parser {
   // =, +=, +=!, etc.
   TreeRef parseAssignment() {
     switch (L.cur().kind) {
-      case TK_PLUS_EQ:
-      case TK_TIMES_EQ:
-      case TK_MIN_EQ:
-      case TK_MAX_EQ:
-      case TK_PLUS_EQ_B:
-      case TK_TIMES_EQ_B:
-      case TK_MIN_EQ_B:
-      case TK_MAX_EQ_B:
-      case '=':
-        return c(L.next().kind, L.cur().range, {});
-      default:
-        L.reportError("a valid assignment operator");
-        // unreachable, silence warnings
-        return nullptr;
+    case TK_PLUS_EQ:
+    case TK_TIMES_EQ:
+    case TK_MIN_EQ:
+    case TK_MAX_EQ:
+    case TK_PLUS_EQ_B:
+    case TK_TIMES_EQ_B:
+    case TK_MIN_EQ_B:
+    case TK_MAX_EQ_B:
+    case '=':
+      return c(L.next().kind, L.cur().range, {});
+    default:
+      L.reportError("a valid assignment operator");
+      // unreachable, silence warnings
+      return nullptr;
     }
   }
   TreeRef parseStmt() {
@@ -269,15 +270,9 @@ struct Parser {
     TreeRef equivalent_statement = parseEquivalent();
     TreeRef range_statements = parseWhereClauses();
     TreeRef empty_reduction_variables = c(TK_LIST, ident->range(), {});
-    return Comprehension::create(
-        ident->range(),
-        ident,
-        list,
-        assign,
-        rhs,
-        range_statements,
-        equivalent_statement,
-        empty_reduction_variables);
+    return Comprehension::create(ident->range(), ident, list, assign, rhs,
+                                 range_statements, equivalent_statement,
+                                 empty_reduction_variables);
   }
   TreeRef parseScalarType() {
     if (shared.isScalarType(L.cur().kind)) {
@@ -339,20 +334,17 @@ struct Parser {
 
   Lexer L;
 
- private:
+private:
   // short helpers to create nodes
-  TreeRef d(const std::string& v, const std::string& suffix) {
+  TreeRef d(const std::string &v, const std::string &suffix) {
     return Number::create(v, suffix);
   }
-  TreeRef s(const std::string& s) {
-    return String::create(s);
-  }
-  TreeRef c(int kind, const SourceRange& range, TreeList&& trees) {
+  TreeRef s(const std::string &s) { return String::create(s); }
+  TreeRef c(int kind, const SourceRange &range, TreeList &&trees) {
     return Compound::create(kind, range, std::move(trees));
   }
-  SharedParserData& shared;
+  SharedParserData &shared;
 };
 } // namespace lang
 
 #endif // TECKYL_TC_LANG_PARSER_H_
-

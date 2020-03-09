@@ -99,4 +99,3 @@ std::unordered_map<std::string, size_t> builtin_functions({
 } // namespace lang
 
 #endif // TECKYL_TC_LANG_BUILTINS_H_
-

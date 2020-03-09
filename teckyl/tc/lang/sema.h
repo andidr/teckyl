@@ -34,10 +34,10 @@ struct TypeInfo {
   TypeInfo(Code code_, uint8_t bits_) : code_(code_), bits_(bits_) {}
   TypeInfo(TreeRef scalar_type) {
     switch (scalar_type->kind()) {
-#define TYPE_INFO_OPTION(tok, c, b) \
-  case tok:                         \
-    code_ = c;                      \
-    bits_ = b;                      \
+#define TYPE_INFO_OPTION(tok, c, b)                                            \
+  case tok:                                                                    \
+    code_ = c;                                                                 \
+    bits_ = b;                                                                 \
     break;
       TYPE_INFO_OPTION(TK_BOOL, UInt, 1)
       TYPE_INFO_OPTION(TK_UINT8, UInt, 8)
@@ -55,10 +55,10 @@ struct TypeInfo {
       TYPE_INFO_OPTION(TK_DOUBLE, Float, 64)
 
 #undef TYPE_INFO_OPTION
-      default:
-        ErrorReport err(scalar_type);
-        err << "Unhandled TC scalar type: " << scalar_type;
-        llvm_unreachable(err.what());
+    default:
+      ErrorReport err(scalar_type);
+      err << "Unhandled TC scalar type: " << scalar_type;
+      llvm_unreachable(err.what());
     }
 
     if (code_ == Code::Float && bits_ == 16) {
@@ -70,57 +70,49 @@ struct TypeInfo {
   }
   int toScalarToken() const {
     switch (code()) {
-      case UInt:
-        switch (bits()) {
-          case 1:
-            return TK_BOOL;
-          case 8:
-            return TK_UINT8;
-          case 16:
-            return TK_UINT16;
-          case 32:
-            return TK_UINT32;
-          case 64:
-            return TK_UINT64;
-        }
-      case Int:
-        switch (bits()) {
-          case 8:
-            return TK_INT8;
-          case 16:
-            return TK_INT16;
-          case 32:
-            return TK_INT32;
-          case 64:
-            return TK_INT64;
-        }
-      case Float:
-        switch (bits()) {
-          case 16:
-            return TK_FLOAT16;
-          case 32:
-            return TK_FLOAT;
-          case 64:
-            return TK_DOUBLE;
-        }
+    case UInt:
+      switch (bits()) {
+      case 1:
+        return TK_BOOL;
+      case 8:
+        return TK_UINT8;
+      case 16:
+        return TK_UINT16;
+      case 32:
+        return TK_UINT32;
+      case 64:
+        return TK_UINT64;
+      }
+    case Int:
+      switch (bits()) {
+      case 8:
+        return TK_INT8;
+      case 16:
+        return TK_INT16;
+      case 32:
+        return TK_INT32;
+      case 64:
+        return TK_INT64;
+      }
+    case Float:
+      switch (bits()) {
+      case 16:
+        return TK_FLOAT16;
+      case 32:
+        return TK_FLOAT;
+      case 64:
+        return TK_DOUBLE;
+      }
     }
 
     llvm_unreachable("Unknown type info?");
   }
-  Code code() const {
-    return code_;
-  }
-  uint8_t bits() const {
-    return bits_;
-  }
-  bool is_float() const {
-    return code_ == Float;
-  }
-  bool is_uint() const {
-    return code_ == UInt;
-  }
+  Code code() const { return code_; }
+  uint8_t bits() const { return bits_; }
+  bool is_float() const { return code_ == Float; }
+  bool is_uint() const { return code_ == UInt; }
 
- private:
+private:
   Code code_;
   uint8_t bits_;
 };
@@ -156,12 +148,12 @@ static inline TreeRef match_types(TreeRef a, TreeRef b) {
   } else if (!ta.is_float() && !tb.is_float()) {
     // int(a) * (u)int(b) -> int(max(a, b))
     int bits = std::max(ta.bits(), tb.bits());
-    return Compound::create(
-        TypeInfo(TypeInfo::Int, bits).toScalarToken(), a->range(), {});
+    return Compound::create(TypeInfo(TypeInfo::Int, bits).toScalarToken(),
+                            a->range(), {});
   } else {
     ErrorReport err(b);
-    err << "Could not match types: " << kindToString(ta.toScalarToken())
-        << ", " << kindToString(tb.toScalarToken());
+    err << "Could not match types: " << kindToString(ta.toScalarToken()) << ", "
+        << kindToString(tb.toScalarToken());
     llvm_unreachable(err.what());
   }
 }
@@ -176,7 +168,7 @@ static inline TreeRef match_types(TreeRef a, TreeRef b) {
 /// - checks that input variables are readonly.
 struct Sema {
   explicit Sema(
-      const tc::CompilerOptions& compilerOptions = tc::CompilerOptions())
+      const tc::CompilerOptions &compilerOptions = tc::CompilerOptions())
       : compilerOptions(compilerOptions) {}
 
   TreeRef typeOfExpr(TreeRef ref) {
@@ -251,133 +243,130 @@ struct Sema {
 
   TreeRef checkExp(TreeRef exp, bool allow_access) {
     switch (exp->kind()) {
-      case TK_APPLY: {
-        auto a = Apply(exp);
-        if (!allow_access
-            /* && live_input_names.count(a.name().name()) == 0 */) {
-          // We want to allow access to inputs in this context, but it
-          // isn't yet supported
-          ErrorReport err(exp);
-          err << "tensor accesses cannot be used in this context";
-          llvm_unreachable(err.what());
-        }
-
-        // also handle built-in functions log, exp, etc.
-        auto ident = a.name();
-        if (builtin_functions.count(ident.name()) > 0) {
-          auto nargs = builtin_functions[ident.name()];
-          if (nargs != a.arguments().size()) {
-            ErrorReport err(exp);
-            err << "expected " << nargs << " but found "
-                << a.arguments().size();
-            llvm_unreachable(err.what());
-          }
-          auto args = checkExp(a.arguments(), allow_access);
-          // [BUILTIN TYPE MATCHING]
-          // for now we assume, dangerously, that all built in are just
-          // float or double
-          // numeric functions and should propagate their types like +, -, *,
-          // div
-          auto type = matchAllTypes(args, floatType(exp));
-          return withType(
-              BuiltIn::create(exp->range(), ident.name(), args, type), type);
-        }
-        auto type = expectTensorType(ident, lookup(ident, true));
-        if (type.dims().size() != a.arguments().size()) {
-          ErrorReport err(a);
-          err << "expected " << type.dims().size() << " dimensions but found "
-              << a.arguments().size() << " dimensions.";
-          llvm_unreachable(err.what());
-        }
-        auto checked = checkExp(a.arguments(), allow_access);
-        for (auto t : checked->trees()) {
-          expectIntegral(t);
-        }
-        return withType(
-            Access::create(exp->range(), ident, checked),
-            type.scalarTypeTree());
-      } break;
-      case TK_IDENT: {
-        auto ident = Ident(exp);
-        auto type = lookupVarOrCreateIndex(ident);
-        if (type->kind() == TK_TENSOR_TYPE) {
-          auto tt = TensorType(type);
-          if (tt.dims().size() != 0) {
-            ErrorReport err(exp);
-            err << "expected a scalar but found a tensor expression.";
-            llvm_unreachable(err.what());
-          }
-          return checkExp(
-              Apply::create(
-                  ident.range(), ident, List::create(ident.range(), {})),
-              allow_access);
-        }
-        return withType(exp, type);
-      } break;
-      case '.': {
-        auto s = Select(exp);
-        auto ident = s.name();
-        expectTensorType(ident, lookup(ident, true));
-        return withType(exp, dimType(s));
-      } break;
-      case '+':
-      case '-':
-      case '*':
-      case '/':
-      case '%':
-      case TK_MIN:
-      case TK_MAX: {
-        auto nexp =
-            exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
-        return withType(nexp, matchAllTypes(nexp));
-      } break;
-      case TK_EQ:
-      case TK_NE:
-      case TK_GE:
-      case TK_LE:
-      case '<':
-      case '>': {
-        auto nexp =
-            exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
-        // make sure the types match but the return type
-        // is always bool
-        matchAllTypes(nexp);
-        return withType(nexp, boolType(exp));
-      } break;
-      case TK_AND:
-      case TK_OR:
-      case '!': {
-        auto nexp =
-            exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
-        expectBool(exp, matchAllTypes(nexp)->kind());
-        return withType(nexp, boolType(exp));
-      } break;
-      case '?': {
-        auto nexp =
-            exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
-        expectBool(nexp->tree(0));
-        auto rtype =
-            match_types(typeOfExpr(nexp->tree(1)), typeOfExpr(nexp->tree(2)));
-        return withType(nexp, rtype);
-      }
-      case TK_CONST: {
-        auto c = Const(exp);
-        return withType(exp, c.type());
-      } break;
-      case TK_CAST: {
-        auto c = Cast(exp);
-        auto nexp = checkExp(c.value(), allow_access);
-        // currently this does not error, but we may want it to in the future
-        match_types(typeOfExpr(nexp), c.type());
-        return withType(Cast::create(c.range(), nexp, c.type()), c.type());
-      }
-      case TK_LIST: {
-        return exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
-      } break;
-      default:
+    case TK_APPLY: {
+      auto a = Apply(exp);
+      if (!allow_access
+          /* && live_input_names.count(a.name().name()) == 0 */) {
+        // We want to allow access to inputs in this context, but it
+        // isn't yet supported
         ErrorReport err(exp);
-        err << "NYI - semantic checking for " << exp;
+        err << "tensor accesses cannot be used in this context";
         llvm_unreachable(err.what());
+      }
+
+      // also handle built-in functions log, exp, etc.
+      auto ident = a.name();
+      if (builtin_functions.count(ident.name()) > 0) {
+        auto nargs = builtin_functions[ident.name()];
+        if (nargs != a.arguments().size()) {
+          ErrorReport err(exp);
+          err << "expected " << nargs << " but found " << a.arguments().size();
+          llvm_unreachable(err.what());
+        }
+        auto args = checkExp(a.arguments(), allow_access);
+        // [BUILTIN TYPE MATCHING]
+        // for now we assume, dangerously, that all built in are just
+        // float or double
+        // numeric functions and should propagate their types like +, -, *,
+        // div
+        auto type = matchAllTypes(args, floatType(exp));
+        return withType(BuiltIn::create(exp->range(), ident.name(), args, type),
+                        type);
+      }
+      auto type = expectTensorType(ident, lookup(ident, true));
+      if (type.dims().size() != a.arguments().size()) {
+        ErrorReport err(a);
+        err << "expected " << type.dims().size() << " dimensions but found "
+            << a.arguments().size() << " dimensions.";
+        llvm_unreachable(err.what());
+      }
+      auto checked = checkExp(a.arguments(), allow_access);
+      for (auto t : checked->trees()) {
+        expectIntegral(t);
+      }
+      return withType(Access::create(exp->range(), ident, checked),
+                      type.scalarTypeTree());
+    } break;
+    case TK_IDENT: {
+      auto ident = Ident(exp);
+      auto type = lookupVarOrCreateIndex(ident);
+      if (type->kind() == TK_TENSOR_TYPE) {
+        auto tt = TensorType(type);
+        if (tt.dims().size() != 0) {
+          ErrorReport err(exp);
+          err << "expected a scalar but found a tensor expression.";
+          llvm_unreachable(err.what());
+        }
+        return checkExp(Apply::create(ident.range(), ident,
+                                      List::create(ident.range(), {})),
+                        allow_access);
+      }
+      return withType(exp, type);
+    } break;
+    case '.': {
+      auto s = Select(exp);
+      auto ident = s.name();
+      expectTensorType(ident, lookup(ident, true));
+      return withType(exp, dimType(s));
+    } break;
+    case '+':
+    case '-':
+    case '*':
+    case '/':
+    case '%':
+    case TK_MIN:
+    case TK_MAX: {
+      auto nexp =
+          exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
+      return withType(nexp, matchAllTypes(nexp));
+    } break;
+    case TK_EQ:
+    case TK_NE:
+    case TK_GE:
+    case TK_LE:
+    case '<':
+    case '>': {
+      auto nexp =
+          exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
+      // make sure the types match but the return type
+      // is always bool
+      matchAllTypes(nexp);
+      return withType(nexp, boolType(exp));
+    } break;
+    case TK_AND:
+    case TK_OR:
+    case '!': {
+      auto nexp =
+          exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
+      expectBool(exp, matchAllTypes(nexp)->kind());
+      return withType(nexp, boolType(exp));
+    } break;
+    case '?': {
+      auto nexp =
+          exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
+      expectBool(nexp->tree(0));
+      auto rtype =
+          match_types(typeOfExpr(nexp->tree(1)), typeOfExpr(nexp->tree(2)));
+      return withType(nexp, rtype);
+    }
+    case TK_CONST: {
+      auto c = Const(exp);
+      return withType(exp, c.type());
+    } break;
+    case TK_CAST: {
+      auto c = Cast(exp);
+      auto nexp = checkExp(c.value(), allow_access);
+      // currently this does not error, but we may want it to in the future
+      match_types(typeOfExpr(nexp), c.type());
+      return withType(Cast::create(c.range(), nexp, c.type()), c.type());
+    }
+    case TK_LIST: {
+      return exp->map([&](TreeRef c) { return checkExp(c, allow_access); });
+    } break;
+    default:
+      ErrorReport err(exp);
+      err << "NYI - semantic checking for " << exp;
+      llvm_unreachable(err.what());
     }
   }
 
@@ -431,9 +420,7 @@ struct Sema {
     return createCompound(TK_INT32, anchor->range(), {});
   }
 
-  TreeRef dimType(TreeRef anchor) {
-    return indexType(anchor);
-  }
+  TreeRef dimType(TreeRef anchor) { return indexType(anchor); }
 
   TreeRef floatType(TreeRef anchor) {
     return createCompound(TK_FLOAT, anchor->range(), {});
@@ -443,13 +430,11 @@ struct Sema {
     return createCompound(TK_BOOL, anchor->range(), {});
   }
 
-  void checkDim(Ident dim) {
-    insert(env, dim, dimType(dim), false);
-  }
+  void checkDim(Ident dim) { insert(env, dim, dimType(dim), false); }
 
   TreeRef checkTensorType(TreeRef type) {
     auto tt = TensorType(type);
-    for (const auto& d : tt.dims()) {
+    for (const auto &d : tt.dims()) {
       // dims may also be constants
       if (d->kind() == TK_IDENT)
         checkDim(Ident(d));
@@ -515,7 +500,7 @@ struct Sema {
     auto stmt = Comprehension(stmt_);
 
     // register index variables (non-reductions)
-    for (const auto& index : stmt.indices()) {
+    for (const auto &index : stmt.indices()) {
       std::string idx = index.name();
       auto typ = indexType(index);
       insert(index_env, index, typ, true);
@@ -585,8 +570,7 @@ struct Sema {
     }
 
     auto type = TensorType::create(
-        stmt.range(),
-        scalar_type,
+        stmt.range(), scalar_type,
         List::create(stmt.range(), std::move(output_indices)));
     insert(env, stmt.ident(), type, false);
 
@@ -619,14 +603,8 @@ struct Sema {
     TreeRef reduction_variable_list =
         List::create(stmt.ident().range(), std::move(reduction_variables));
     TreeRef result = Comprehension::create(
-        stmt.range(),
-        stmt.ident(),
-        stmt.indices(),
-        stmt.assignment(),
-        rhs_,
-        where_clauses_,
-        equivalent_statement_,
-        reduction_variable_list);
+        stmt.range(), stmt.ident(), stmt.indices(), stmt.assignment(), rhs_,
+        where_clauses_, equivalent_statement_, reduction_variable_list);
 
     if (nonTemporaries.count(stmt.ident().name()) == 0) {
       ErrorReport err(stmt);
@@ -644,49 +622,47 @@ struct Sema {
 
   static bool isUninitializedReductionOperation(TreeRef assignment) {
     switch (assignment->kind()) {
-      case TK_PLUS_EQ:
-      case TK_TIMES_EQ:
-      case TK_MIN_EQ:
-      case TK_MAX_EQ:
-        return true;
-      default:
-        return false;
+    case TK_PLUS_EQ:
+    case TK_TIMES_EQ:
+    case TK_MIN_EQ:
+    case TK_MAX_EQ:
+      return true;
+    default:
+      return false;
     }
   }
 
   bool isNotInplace(TreeRef assignment) {
     switch (assignment->kind()) {
-      case TK_PLUS_EQ_B:
-      case TK_TIMES_EQ_B:
-      case TK_MIN_EQ_B:
-      case TK_MAX_EQ_B:
-        return true;
-      default:
-        return false;
+    case TK_PLUS_EQ_B:
+    case TK_TIMES_EQ_B:
+    case TK_MIN_EQ_B:
+    case TK_MAX_EQ_B:
+      return true;
+    default:
+      return false;
     }
   }
 
   std::string dumpEnv() {
     std::stringstream ss;
     std::vector<std::pair<std::string, TreeRef>> elems(env.begin(), env.end());
-    std::sort(
-        elems.begin(),
-        elems.end(),
-        [](const std::pair<std::string, TreeRef>& t,
-           const std::pair<std::string, TreeRef>& t2) {
-          return t.first < t2.first;
-        });
+    std::sort(elems.begin(), elems.end(),
+              [](const std::pair<std::string, TreeRef> &t,
+                 const std::pair<std::string, TreeRef> &t2) {
+                return t.first < t2.first;
+              });
     for (auto p : elems) {
       ss << p.first << ": " << p.second;
     }
     return ss.str();
   }
 
- private:
+private:
   using Env = std::unordered_map<std::string, TreeRef>;
 
-  void
-  insert(Env& the_env, Ident ident, TreeRef value, bool must_be_undefined) {
+  void insert(Env &the_env, Ident ident, TreeRef value,
+              bool must_be_undefined) {
     std::string name = ident.name();
     if (builtin_functions.count(name) > 0) {
       ErrorReport err(ident);
@@ -710,7 +686,7 @@ struct Sema {
     return v;
   }
 
-  TreeRef lookup(Env& the_env, Ident ident, bool required) {
+  TreeRef lookup(Env &the_env, Ident ident, bool required) {
     std::string name = ident.name();
     auto it = the_env.find(name);
     if (required && it == the_env.end()) {
@@ -721,15 +697,15 @@ struct Sema {
     return it == the_env.end() ? nullptr : it->second;
   }
 
-  TreeRef createCompound(int kind, const SourceRange& range, TreeList&& trees) {
+  TreeRef createCompound(int kind, const SourceRange &range, TreeList &&trees) {
     return Compound::create(kind, range, std::move(trees));
   }
 
   std::vector<TreeRef> reduction_variables; // per-statement
-  Env index_env; // per-statement
+  Env index_env;                            // per-statement
   Env let_env; // per-statement, used for where i = <exp>
 
-  Env env; // name -> type
+  Env env;                    // name -> type
   Env annotated_output_types; // name -> type, for all annotated returns types
   // identifiers that currently refer to an input tensor
   // values in these tensors are allowed in range expressions
@@ -748,4 +724,3 @@ struct Sema {
 } // namespace lang
 
 #endif // TECKYL_TC_SEMA_H_
-

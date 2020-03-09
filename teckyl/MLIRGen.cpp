@@ -3,6 +3,7 @@
 #include "teckyl/lang_affine.h"
 #include "teckyl/lang_extras.h"
 
+#include "teckyl/tc/lang/sema.h"
 #include <llvm/ADT/ScopedHashTable.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <mlir/Dialect/AffineOps/AffineOps.h>
@@ -14,7 +15,6 @@
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Function.h>
 #include <mlir/IR/StandardTypes.h>
-#include "teckyl/tc/lang/sema.h"
 
 namespace teckyl {
 
@@ -378,8 +378,7 @@ public:
             location, llvm::APFloat(llvm::APFloat::IEEEdouble(), cst),
             floatType);
       } else {
-        llvm_unreachable(
-            "Could not build constant: Unknown float type");
+        llvm_unreachable("Could not build constant: Unknown float type");
       }
     } else if (targetType.isa<mlir::IntegerType>()) {
       mlir::IntegerType iType = targetType.cast<mlir::IntegerType>();
@@ -407,8 +406,7 @@ public:
 
       return builder.create<mlir::ConstantIndexOp>(location, icst);
     } else {
-      llvm_unreachable(
-          "Could not build constant: Unsupported target type");
+      llvm_unreachable("Could not build constant: Unsupported target type");
     }
   }
 
@@ -1054,8 +1052,8 @@ private:
             gen.getBuilder(), rhsVal, accu, loc(c.range()));
         break;
       case '=':
-	res = rhsVal;
-	break;
+        res = rhsVal;
+        break;
       default:
         llvm_unreachable("Unsupported operator");
       }

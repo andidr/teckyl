@@ -3,8 +3,8 @@
 
 #include "teckyl/Exception.h"
 
-#include <mlir/IR/Function.h>
 #include "teckyl/tc/lang/tree_views.h"
+#include <mlir/IR/Function.h>
 
 #include <sstream>
 
