@@ -25,13 +25,12 @@ std::string kindToString(int kind) {
   if (kind < 256)
     return std::string(1, kind);
   switch (kind) {
-#define DEFINE_CASE(tok, str, _) \
-  case tok:                      \
+#define DEFINE_CASE(tok, str, _)                                               \
+  case tok:                                                                    \
     return str;
     TC_FORALL_TOKEN_KINDS(DEFINE_CASE)
 #undef DEFINE_CASE
-    default:
-      ;
+  default:;
   }
   std::runtime_error err("unknown kind: " + std::to_string(kind));
   THROW_OR_ASSERT(err);
@@ -41,28 +40,27 @@ std::string kindToToken(int kind) {
   if (kind < 256)
     return std::string(1, kind);
   switch (kind) {
-#define DEFINE_CASE(tok, _, str)                                       \
-  case tok:                                                            \
-    if (!strcmp(str, "")) {                                            \
-      std::runtime_error err("No token for: " + kindToString(kind));   \
-      THROW_OR_ASSERT(err);                                            \
-    }                                                                  \
+#define DEFINE_CASE(tok, _, str)                                               \
+  case tok:                                                                    \
+    if (!strcmp(str, "")) {                                                    \
+      std::runtime_error err("No token for: " + kindToString(kind));           \
+      THROW_OR_ASSERT(err);                                                    \
+    }                                                                          \
     return str;
     TC_FORALL_TOKEN_KINDS(DEFINE_CASE)
 #undef DEFINE_CASE
-    default:
-      ;
+  default:;
   }
   std::runtime_error err("unknown kind: " + std::to_string(kind));
   THROW_OR_ASSERT(err);
 }
 
-SharedParserData& sharedParserData() {
+SharedParserData &sharedParserData() {
   static SharedParserData data; // safely handles multi-threaded init
   return data;
 }
 
-void Lexer::reportError(const std::string& what, const Token& t) {
+void Lexer::reportError(const std::string &what, const Token &t) {
   ErrorReport err(t.range);
   err << "expected " << what << " but found '" << t.kindString() << "' here:";
   THROW_OR_ASSERT(err);

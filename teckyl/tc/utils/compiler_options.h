@@ -26,7 +26,7 @@ namespace tc {
 /// This class intends to replace the uses of flags (aka global variables)
 /// scattered around the codebae.
 class CompilerOptions {
- public:
+public:
   /// Explicitly-default constructor.  All member variables must have a default
   /// assigned value.
   CompilerOptions() = default;

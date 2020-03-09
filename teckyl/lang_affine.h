@@ -34,8 +34,7 @@ bool isSymbolic(const lang::TreeRef &t, const std::set<std::string> &syms) {
 
     return false;
   }
-  default:
-      ;
+  default:;
   }
 
   Exception err("Unsupported kind '" + lang::kindToString(t->kind()) + "'");
@@ -93,8 +92,7 @@ bool isAffine(const lang::TreeRef &e, const std::set<std::string> &syms) {
     // TODO: implement canonicalization
     return isAffine(e->tree(0), syms) && !isSymbolic(e->tree(1), syms);
 
-  default:
-      ;
+  default:;
   }
 
   Exception err("Unsupported kind '" + lang::kindToString(e->kind()) + "'");
@@ -130,8 +128,7 @@ bool hasNonAffineIndexing(const lang::TreeRef &e,
 
     return false;
   }
-  default:
-      ;
+  default:;
   }
 
   Exception err("Unsupported kind '" + lang::kindToString(e->kind()) + "'");

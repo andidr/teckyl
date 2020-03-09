@@ -34,12 +34,12 @@ struct ErrorReport : public std::exception {
 #else
 struct ErrorReport {
 #endif // COMPILE_WITH_EXCEPTIONS
-  ErrorReport(const ErrorReport& e)
+  ErrorReport(const ErrorReport &e)
       : ss(e.ss.str()), context(e.context), the_message(e.the_message) {}
 
   ErrorReport(TreeRef context) : context(context->range()) {}
   ErrorReport(SourceRange range) : context(std::move(range)) {}
-  const char* what() const noexcept {
+  const char *what() const noexcept {
     std::stringstream msg;
     msg << "\n" << ss.str() << ":\n";
     context.highlight(msg);
@@ -47,36 +47,35 @@ struct ErrorReport {
     return the_message.c_str();
   }
 
- private:
+private:
   template <typename T>
-  friend const ErrorReport& operator<<(const ErrorReport& e, const T& t);
+  friend const ErrorReport &operator<<(const ErrorReport &e, const T &t);
 
   mutable std::stringstream ss;
   SourceRange context;
   mutable std::string the_message;
 };
 
-inline void warn(
-    const ErrorReport& err,
-    const tc::CompilerOptions& compilerOptions = tc::CompilerOptions()) {
+inline void
+warn(const ErrorReport &err,
+     const tc::CompilerOptions &compilerOptions = tc::CompilerOptions()) {
   if (compilerOptions.emitWarnings) {
     std::cerr << "WARNING: " << err.what();
   }
 }
 
 template <typename T>
-const ErrorReport& operator<<(const ErrorReport& e, const T& t) {
+const ErrorReport &operator<<(const ErrorReport &e, const T &t) {
   e.ss << t;
   return e;
 }
 
-#define TC_ASSERT(ctx, cond)                                               \
-  if (!(cond)) {                                                           \
-    ::lang::ErrorReport err(ctx);                                          \
-    err << __FILE__ << ":" << __LINE__ << ": assertion failed: " << #cond; \
-    THROW_OR_ASSERT(err);                                                  \
+#define TC_ASSERT(ctx, cond)                                                   \
+  if (!(cond)) {                                                               \
+    ::lang::ErrorReport err(ctx);                                              \
+    err << __FILE__ << ":" << __LINE__ << ": assertion failed: " << #cond;     \
+    THROW_OR_ASSERT(err);                                                      \
   }
 } // namespace lang
 
 #endif // TECKYL_TC_LANG_ERROR_REPORT_H_
-

@@ -21,9 +21,9 @@
 #include <sstream>
 #include <vector>
 
+#include "teckyl/tc/lang/lexer.h"
 #include <llvm/ADT/Twine.h>
 #include <llvm/Support/ErrorHandling.h>
-#include "teckyl/tc/lang/lexer.h"
 
 using llvm::Twine;
 
@@ -68,36 +68,22 @@ protected:
 
 struct Tree : std::enable_shared_from_this<Tree> {
   Tree(int kind_) : kind_(kind_), id_(TreeId::generate()) {}
-  int kind() const {
-    return kind_;
-  }
-  virtual bool isAtom() const {
-    return true;
-  }
-  virtual const SourceRange& range() const {
-    llvm_unreachable("is an Atom");
-  }
-  virtual const std::string& numValue() const {
+  int kind() const { return kind_; }
+  virtual bool isAtom() const { return true; }
+  virtual const SourceRange &range() const { llvm_unreachable("is an Atom"); }
+  virtual const std::string &numValue() const {
     llvm_unreachable("not a TK_NUMBER");
   }
-  virtual const std::string& stringValue() const {
+  virtual const std::string &stringValue() const {
     llvm_unreachable("not a TK_STRING");
   }
-  virtual bool boolValue() const {
-    llvm_unreachable("not a TK_BOOL_VALUE");
-  }
-  virtual const TreeList& trees() const {
-    return empty_trees;
-  }
-  const TreeRef& tree(size_t i) const {
-    return trees().at(i);
-  }
+  virtual bool boolValue() const { llvm_unreachable("not a TK_BOOL_VALUE"); }
+  virtual const TreeList &trees() const { return empty_trees; }
+  const TreeRef &tree(size_t i) const { return trees().at(i); }
   virtual TreeRef map(std::function<TreeRef(TreeRef)> fn) {
     return shared_from_this();
   }
-  void expect(int k) {
-    expect(k, trees().size());
-  }
+  void expect(int k) { expect(k, trees().size()); }
   void expect(int k, size_t numsubtrees) {
     if (kind() != k || trees().size() != numsubtrees) {
       std::stringstream ss;
@@ -113,57 +99,44 @@ struct Tree : std::enable_shared_from_this<Tree> {
   TreeId id_;
   virtual ~Tree() {}
 
-  TreeId id() {
-    return id_;
-  }
+  TreeId id() { return id_; }
 };
 
 struct String : public Tree {
-  String(const std::string& value_) : Tree(TK_STRING), value_(value_) {}
-  virtual const std::string& stringValue() const override {
-    return value_;
-  }
-  template <typename... Args>
-  static TreeRef create(Args&&... args) {
+  String(const std::string &value_) : Tree(TK_STRING), value_(value_) {}
+  virtual const std::string &stringValue() const override { return value_; }
+  template <typename... Args> static TreeRef create(Args &&... args) {
     return std::make_shared<String>(std::forward<Args>(args)...);
   }
 
- private:
+private:
   std::string value_;
 };
 struct Number : public Tree {
-  Number(const std::string& value, const std::string& suffix) :
-    Tree(TK_NUMBER), value_(value), suffix_(suffix) {}
-  virtual const std::string& numValue() const override {
-    return value_;
-  }
-  virtual const std::string& suffix() const {
-    return suffix_;
-  }
-  template <typename... Args>
-  static TreeRef create(Args&&... args) {
+  Number(const std::string &value, const std::string &suffix)
+      : Tree(TK_NUMBER), value_(value), suffix_(suffix) {}
+  virtual const std::string &numValue() const override { return value_; }
+  virtual const std::string &suffix() const { return suffix_; }
+  template <typename... Args> static TreeRef create(Args &&... args) {
     return std::make_shared<Number>(std::forward<Args>(args)...);
   }
 
- private:
+private:
   const std::string value_;
   const std::string suffix_;
 };
 struct Bool : public Tree {
   Bool(bool value_) : Tree(TK_BOOL_VALUE), value_(value_) {}
-  virtual bool boolValue() const override {
-    return value_;
-  }
-  template <typename... Args>
-  static TreeRef create(Args&&... args) {
+  virtual bool boolValue() const override { return value_; }
+  template <typename... Args> static TreeRef create(Args &&... args) {
     return std::make_shared<Bool>(std::forward<Args>(args)...);
   }
 
- private:
+private:
   bool value_;
 };
 
-static SourceRange mergeRanges(SourceRange c, const TreeList& others) {
+static SourceRange mergeRanges(SourceRange c, const TreeList &others) {
   for (auto t : others) {
     if (t->isAtom())
       continue;
@@ -178,28 +151,28 @@ static SourceRange mergeRanges(SourceRange c, const TreeList& others) {
     size_t end_line;
     size_t end_ch;
 
-    if(trange.startLine() < c.startLine()) {
+    if (trange.startLine() < c.startLine()) {
       start_line = trange.startLine();
       start_ch = trange.startCharacter();
     } else {
       start_line = c.startLine();
 
-      if(trange.startCharacter() < c.startCharacter())
-	start_ch = trange.startCharacter();
+      if (trange.startCharacter() < c.startCharacter())
+        start_ch = trange.startCharacter();
       else
-	start_ch = c.startCharacter();
+        start_ch = c.startCharacter();
     }
 
-    if(trange.endLine() > c.endLine()) {
+    if (trange.endLine() > c.endLine()) {
       end_line = trange.endLine();
       end_ch = trange.endCharacter();
     } else {
       end_line = c.endLine();
 
-      if(trange.endCharacter() > c.endCharacter())
-	end_ch = trange.endCharacter();
+      if (trange.endCharacter() > c.endCharacter())
+        end_ch = trange.endCharacter();
       else
-	end_ch = c.endCharacter();
+        end_ch = c.endCharacter();
     }
 
     c = SourceRange(c.file_ptr(), s, e, start_line, start_ch, end_line, end_ch);
@@ -208,69 +181,62 @@ static SourceRange mergeRanges(SourceRange c, const TreeList& others) {
 }
 
 struct Compound : public Tree {
-  Compound(int kind, const SourceRange& range_) : Tree(kind), range_(range_) {}
-  Compound(int kind, const SourceRange& range_, TreeList&& trees_)
-      : Tree(kind),
-        range_(mergeRanges(range_, trees_)),
+  Compound(int kind, const SourceRange &range_) : Tree(kind), range_(range_) {}
+  Compound(int kind, const SourceRange &range_, TreeList &&trees_)
+      : Tree(kind), range_(mergeRanges(range_, trees_)),
         trees_(std::move(trees_)) {}
-  virtual const TreeList& trees() const override {
-    return trees_;
-  }
-  static TreeRef
-  create(int kind, const SourceRange& range_, TreeList&& trees_) {
+  virtual const TreeList &trees() const override { return trees_; }
+  static TreeRef create(int kind, const SourceRange &range_,
+                        TreeList &&trees_) {
     return std::make_shared<Compound>(kind, range_, std::move(trees_));
   }
-  virtual bool isAtom() const override {
-    return false;
-  }
+  virtual bool isAtom() const override { return false; }
   virtual TreeRef map(std::function<TreeRef(TreeRef)> fn) override {
     TreeList trees_;
-    for (auto& t : trees()) {
+    for (auto &t : trees()) {
       trees_.push_back(fn(t));
     }
     return Compound::create(kind(), range(), std::move(trees_));
   }
-  const SourceRange& range() const override {
-    return range_;
-  }
+  const SourceRange &range() const override { return range_; }
 
- private:
+private:
   SourceRange range_;
   TreeList trees_;
 };
 
 /// tree pretty printer
 struct pretty_tree {
-  pretty_tree(const TreeRef& tree, size_t col = 40) : tree(tree), col(col) {}
-  const TreeRef& tree;
+  pretty_tree(const TreeRef &tree, size_t col = 40) : tree(tree), col(col) {}
+  const TreeRef &tree;
   size_t col;
   std::unordered_map<TreeRef, std::string> flat_strings;
-  const std::string& get_flat(const TreeRef& t) {
+  const std::string &get_flat(const TreeRef &t) {
     auto it = flat_strings.find(t);
     if (it != flat_strings.end())
       return it->second;
 
     std::stringstream out;
     switch (t->kind()) {
-      case TK_NUMBER:
-        out << t->numValue();
-        break;
-      case TK_STRING:
-        out << t->stringValue();
-        break;
-      default:
-        out << "(" << kindToString(t->kind());
-        for (auto e : t->trees()) {
-          out << " " << get_flat(e);
-        }
-        out << ")";
-        break;
+    case TK_NUMBER:
+      out << t->numValue();
+      break;
+    case TK_STRING:
+      out << t->stringValue();
+      break;
+    default:
+      out << "(" << kindToString(t->kind());
+      for (auto e : t->trees()) {
+        out << " " << get_flat(e);
+      }
+      out << ")";
+      break;
     }
     auto it_ = flat_strings.emplace(t, out.str());
     return it_.first->second;
   }
-  void print(std::ostream& out, const TreeRef& t, int indent) {
-    const std::string& s = get_flat(t);
+  void print(std::ostream &out, const TreeRef &t, int indent) {
+    const std::string &s = get_flat(t);
     if (indent + s.size() < col || t->isAtom()) {
       out << s;
       return;
@@ -285,15 +251,14 @@ struct pretty_tree {
   }
 };
 
-static inline std::ostream& operator<<(std::ostream& out, pretty_tree t_) {
+static inline std::ostream &operator<<(std::ostream &out, pretty_tree t_) {
   t_.print(out, t_.tree, 0);
   return out << std::endl;
 }
 
-static inline std::ostream& operator<<(std::ostream& out, TreeRef t) {
+static inline std::ostream &operator<<(std::ostream &out, TreeRef t) {
   return out << pretty_tree(t);
 }
 } // namespace lang
 
 #endif // TECKYL_TC_LANG_TREE_H_
-
