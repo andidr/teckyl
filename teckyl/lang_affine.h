@@ -1,8 +1,8 @@
 #ifndef TECKYL_LANG_AFFINE_H
 #define TECKYL_LANG_AFFINE_H
 
-#include "Exception.h"
-#include "lang_extras.h"
+#include "teckyl/Exception.h"
+#include "teckyl/lang_extras.h"
 
 #include <set>
 #include <string>

@@ -16,8 +16,8 @@
 #ifndef TECKYL_TC_LANG_TREE_VIEWS_H_
 #define TECKYL_TC_LANG_TREE_VIEWS_H_
 
-#include "tc/lang/error_report.h"
-#include "tc/lang/tree.h"
+#include "teckyl/tc/lang/error_report.h"
+#include "teckyl/tc/lang/tree.h"
 
 #include <sstream>
 

@@ -8,9 +8,9 @@
 #include <mlir/Analysis/Verifier.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Module.h>
-#include <tc/lang/parser.h>
+#include "teckyl/tc/lang/parser.h"
 
-#include "MLIRGen.h"
+#include "teckyl/MLIRGen.h"
 
 // Commandline options
 static llvm::cl::opt<std::string> inputFilename(
@@ -116,7 +116,6 @@ int main(int argc, char **argv) {
   } catch(...) {
     std::cerr << "An unknown error has occured." << std::endl;
     return 1;
-  }  
+  }
 #endif // COMPILE_WITH_EXCEPTIONS
-  
 }

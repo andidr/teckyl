@@ -18,11 +18,11 @@
 
 #include <unordered_set>
 
-#include "tc/lang/builtins.h"
-#include "tc/lang/error_report.h"
-#include "tc/lang/tree.h"
-#include "tc/lang/tree_views.h"
-#include "tc/utils/compiler_options.h"
+#include "teckyl/tc/lang/builtins.h"
+#include "teckyl/tc/lang/error_report.h"
+#include "teckyl/tc/lang/tree.h"
+#include "teckyl/tc/lang/tree_views.h"
+#include "teckyl/tc/utils/compiler_options.h"
 
 namespace lang {
 
