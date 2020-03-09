@@ -16,8 +16,8 @@
 #ifndef TECKYL_TC_LANG_ERROR_REPORT_H_
 #define TECKYL_TC_LANG_ERROR_REPORT_H_
 
-#include "tc/lang/tree.h"
-#include "tc/utils/compiler_options.h"
+#include "teckyl/tc/lang/tree.h"
+#include "teckyl/tc/utils/compiler_options.h"
 
 #ifndef THROW_OR_ASSERT
 #ifdef COMPILE_WITH_EXCEPTIONS

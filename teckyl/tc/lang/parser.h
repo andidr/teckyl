@@ -16,9 +16,9 @@
 #ifndef TECKYL_TC_LANG_PARSER_H_
 #define TECKYL_TC_LANG_PARSER_H_
 
-#include "tc/lang/lexer.h"
-#include "tc/lang/tree.h"
-#include "tc/lang/tree_views.h"
+#include "teckyl/tc/lang/lexer.h"
+#include "teckyl/tc/lang/tree.h"
+#include "teckyl/tc/lang/tree_views.h"
 
 namespace lang {
 

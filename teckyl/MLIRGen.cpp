@@ -1,7 +1,7 @@
-#include "MLIRGen.h"
-#include "MLIRAffineExprGen.h"
-#include "lang_affine.h"
-#include "lang_extras.h"
+#include "teckyl/MLIRGen.h"
+#include "teckyl/MLIRAffineExprGen.h"
+#include "teckyl/lang_affine.h"
+#include "teckyl/lang_extras.h"
 
 #include <llvm/ADT/ScopedHashTable.h>
 #include <llvm/Support/ErrorHandling.h>
@@ -14,7 +14,7 @@
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Function.h>
 #include <mlir/IR/StandardTypes.h>
-#include <tc/lang/sema.h>
+#include "teckyl/tc/lang/sema.h"
 
 namespace teckyl {
 

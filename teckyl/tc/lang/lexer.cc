@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "tc/lang/lexer.h"
+#include "teckyl/tc/lang/lexer.h"
 
 #include <cstring>
 
-#include "tc/lang/error_report.h"
+#include "teckyl/tc/lang/error_report.h"
 
 namespace lang {
 

@@ -1,8 +1,8 @@
 #ifndef TECKYL_LANG_EXTRAS_H
 #define TECKYL_LANG_EXTRAS_H
 
-#include "Exception.h"
-#include <tc/lang/tree.h>
+#include "teckyl/Exception.h"
+#include "teckyl/tc/lang/tree.h"
 
 #include <map>
 #include <set>

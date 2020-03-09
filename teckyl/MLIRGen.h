@@ -1,10 +1,10 @@
 #ifndef TECKYL_MLIRGEN_H
 #define TECKYL_MLIRGEN_H
 
-#include "Exception.h"
+#include "teckyl/Exception.h"
 
 #include <mlir/IR/Function.h>
-#include <tc/lang/tree_views.h>
+#include "teckyl/tc/lang/tree_views.h"
 
 #include <sstream>
 

@@ -1,8 +1,8 @@
 #ifndef TECKYL_MLIRAFFINEEXPRGEN_H
 #define TECKYL_MLIRAFFINEEXPRGEN_H
 
-#include "Exception.h"
-#include "lang_extras.h"
+#include "teckyl/Exception.h"
+#include "teckyl/lang_extras.h"
 
 #include <mlir/IR/AffineExpr.h>
 

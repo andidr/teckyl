@@ -26,7 +26,7 @@ add_llvm_executable(teckyl
 target_compile_options(teckyl PRIVATE -fexceptions -fno-rtti)
 
 target_include_directories(teckyl PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/..
   "${CMAKE_SOURCE_DIR}/llvm-project/mlir/include"
   "${CMAKE_SOURCE_DIR}/llvm-project/llvm/include"
   "${CMAKE_BINARY_DIR}/llvm-project/mlir/include"

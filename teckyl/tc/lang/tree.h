@@ -23,7 +23,7 @@
 
 #include <llvm/ADT/Twine.h>
 #include <llvm/Support/ErrorHandling.h>
-#include "tc/lang/lexer.h"
+#include "teckyl/tc/lang/lexer.h"
 
 using llvm::Twine;
 
