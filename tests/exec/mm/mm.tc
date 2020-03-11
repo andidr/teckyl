@@ -1,4 +1,60 @@
-def mm(float(M,K) A, float(K,N) B) -> (float(M,N) C)
+def mm_u8(uint8(M,K) A, uint8(K,N) B) -> (uint8(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_u16(uint16(M,K) A, uint16(K,N) B) -> (uint16(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_u32(uint32(M,K) A, uint32(K,N) B) -> (uint32(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_u64(uint64(M,K) A, uint64(K,N) B) -> (uint64(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+
+def mm_u8(uint8(M,K) A, uint8(K,N) B) -> (uint8(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_u16(uint16(M,K) A, uint16(K,N) B) -> (uint16(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_u32(uint32(M,K) A, uint32(K,N) B) -> (uint32(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_u64(uint64(M,K) A, uint64(K,N) B) -> (uint64(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_i8(int8(M,K) A, int8(K,N) B) -> (int8(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_i16(int16(M,K) A, int16(K,N) B) -> (int16(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_i32(int32(M,K) A, int32(K,N) B) -> (int32(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_i64(int64(M,K) A, int64(K,N) B) -> (int64(M,N) C)
 {
   C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
 }

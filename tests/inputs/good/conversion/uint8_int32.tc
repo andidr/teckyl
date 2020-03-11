@@ -1,0 +1,4 @@
+def mv(int32(M,K) A, int32(K) x) -> (int32(M) C)
+{
+  C(i) +=! 2u8 * A(i,k) * x(k) where i in 0:M, k in 0:K
+}

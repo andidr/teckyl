@@ -1,0 +1,4 @@
+def mv(uint16(M,K) A, uint16(K) x) -> (uint16(M) C)
+{
+  C(i) +=! 2u16 * A(i,k) * x(k) where i in 0:M, k in 0:K
+}

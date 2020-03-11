@@ -1,0 +1,4 @@
+def mv(float64(M,K) A, float64(K) x) -> (float64(M) C)
+{
+  C(i) +=! 2u8 * A(i,k) * x(k) where i in 0:M, k in 0:K
+}

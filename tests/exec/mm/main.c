@@ -2,35 +2,126 @@
 #include <string.h>
 #include "../lib/memref.h"
 
-/* Generated matrix multiplication function under test */
-extern void mm(const float* a_allocatedptr, const float* a_alignedptr, int64_t a_offset, int64_t a_sizes0, int64_t a_sizes1, int64_t a_strides0, int64_t a_strides1,
-	       const float* b_allocatedptr, const float* b_alignedptr, int64_t b_offset, int64_t b_sizes0, int64_t b_sizes1, int64_t b_strides0, int64_t b_strides1,
-	       float* o_allocatedptr, float* o_alignedptr, int64_t o_offset, int64_t o_sizes0, int64_t o_sizes1, int64_t o_strides0, int64_t o_strides1);
+#define DECL_MM_TEST(SUFFIX, TYPE, VECTYPE)				\
+	/* Generated matrix multiplication function under test */	\
+	extern void mm_##SUFFIX(					\
+		const TYPE* a_allocatedptr, const TYPE* a_alignedptr,	\
+		int64_t a_offset, int64_t a_sizes0, int64_t a_sizes1,	\
+		int64_t a_strides0, int64_t a_strides1,			\
+									\
+		const TYPE* b_allocatedptr, const TYPE* b_alignedptr,	\
+		int64_t b_offset, int64_t b_sizes0, int64_t b_sizes1,	\
+		int64_t b_strides0, int64_t b_strides1,			\
+									\
+		TYPE* o_allocatedptr, TYPE* o_alignedptr,		\
+		int64_t o_offset, int64_t o_sizes0, int64_t o_sizes1,	\
+		int64_t o_strides0, int64_t o_strides1);		\
+									\
+	/* Reference implementation of a matrix multiplication */	\
+	void mm_refimpl_##SUFFIX(const struct VECTYPE* a,		\
+				 const struct VECTYPE* b,		\
+				 struct VECTYPE* o)			\
+	{								\
+		TYPE accu;						\
+									\
+		for(int64_t y = 0; y < o->sizes[0]; y++) {		\
+			for(int64_t x = 0; x < o->sizes[1]; x++) {	\
+				accu = 0;				\
+									\
+				for(int64_t k = 0; k < a->sizes[1]; k++){\
+					accu += VECTYPE##_get(a, k, y) *\
+						VECTYPE##_get(b, x, k); \
+				}					\
+									\
+				VECTYPE##_set(o, x, y, accu);		\
+			}						\
+		}							\
+	}								\
+									\
+	/* Initialize matrix with value x+y at position (x, y) */	\
+	void init_matrix_##SUFFIX(struct VECTYPE* m)			\
+	{								\
+		for(int64_t y = 0; y < m->sizes[0]; y++)		\
+			for(int64_t x = 0; x < m->sizes[1]; x++)	\
+				VECTYPE##_set(m, x, y, x+y);		\
+	}								\
+									\
+	/* Executes the implementation under test and compares the */	\
+	/* result with the reference implementation. If the results */	\
+	/* differ, an error message is displayed o,n stderr and the */	\
+	/* process is killed with a nonzero exit code. */		\
+	int test_##SUFFIX(int verbose)					\
+	{								\
+		struct VECTYPE a, b, o, o_ref;				\
+		int n = 6;						\
+		int k = 9;						\
+		int m = 12;						\
+									\
+		if(VECTYPE##_alloc(&a, n, k) ||				\
+		   VECTYPE##_alloc(&b, k, m) ||				\
+		   VECTYPE##_alloc(&o, n, m) ||				\
+		   VECTYPE##_alloc(&o_ref, n, m))			\
+		{							\
+		        fputs("Allocation failed [" #SUFFIX "]",	\
+			      stderr);					\
+		        exit(1);					\
+		}							\
+									\
+		init_matrix_##SUFFIX(&a);				\
+		init_matrix_##SUFFIX(&b);				\
+									\
+		if(verbose) {						\
+			puts("A [" #SUFFIX "]:");			\
+			VECTYPE##_dump(&a);				\
+			puts("");					\
+									\
+			puts("B [" #SUFFIX "]:");			\
+			VECTYPE##_dump(&b);				\
+			puts("");					\
+									\
+			puts("O [" #SUFFIX "]:");			\
+			VECTYPE##_dump(&o);				\
+			puts("");					\
+		}							\
+									\
+		mm_##SUFFIX(VEC2D_ARGS(&a),				\
+			    VEC2D_ARGS(&b),				\
+			    VEC2D_ARGS(&o));				\
+		mm_refimpl_##SUFFIX(&a, &b, &o_ref);			\
+									\
+		if(verbose) {						\
+			puts("Result O [" #SUFFIX "]:");		\
+			VECTYPE##_dump(&o);				\
+			puts("");					\
+									\
+			puts("Reference O [" #SUFFIX "]:");		\
+			VECTYPE##_dump(&o_ref);				\
+			puts("");					\
+		}							\
+									\
+		if(!VECTYPE##_compare(&o, &o_ref)) {			\
+			fputs("Result differs from reference result "	\
+			      "[" #SUFFIX "]\n", stderr);		\
+			exit(1);					\
+		}							\
+									\
+		VECTYPE##_destroy(&a);					\
+		VECTYPE##_destroy(&b);					\
+		VECTYPE##_destroy(&o);					\
+		VECTYPE##_destroy(&o_ref);				\
+									\
+		return 0;						\
+	}								\
 
-/* Reference implementation of a matrix multiplication */
-void mm_refimpl(const struct vec_f2d* a, const struct vec_f2d* b, struct vec_f2d* o)
-{
-	float accu;
+DECL_MM_TEST(u8, uint8_t, vec_u82d)
+DECL_MM_TEST(u16, uint16_t, vec_u162d)
+DECL_MM_TEST(u32, uint32_t, vec_u322d)
+DECL_MM_TEST(u64, uint64_t, vec_u642d)
 
-	for(int64_t y = 0; y < o->sizes[0]; y++) {
-		for(int64_t x = 0; x < o->sizes[1]; x++) {
-			accu = 0;
-
-			for(int64_t k = 0; k < a->sizes[1]; k++)
-				accu += vec_f2d_get(a, k, y) * vec_f2d_get(b, x, k);
-
-			vec_f2d_set(o, x, y, accu);
-		}
-	}
-}
-
-/* Initialize matrix with value x+y at position (x, y) */
-void init_matrix(struct vec_f2d* m)
-{
-	for(int64_t y = 0; y < m->sizes[0]; y++)
-		for(int64_t x = 0; x < m->sizes[1]; x++)
-			vec_f2d_set(m, x, y, x+y);
-}
+DECL_MM_TEST(i8, uint8_t, vec_i82d)
+DECL_MM_TEST(i16, uint16_t, vec_i162d)
+DECL_MM_TEST(i32, uint32_t, vec_i322d)
+DECL_MM_TEST(i64, uint64_t, vec_i642d)
 
 void die_usage(const char* program_name)
 {
@@ -40,11 +131,7 @@ void die_usage(const char* program_name)
 
 int main(int argc, char** argv)
 {
-	struct vec_f2d a, b, o, o_ref;
 	int verbose = 0;
-	int n = 6;
-	int k = 9;
-	int m = 12;
 
 	if(argc > 2)
 		die_usage(argv[0]);
@@ -56,50 +143,15 @@ int main(int argc, char** argv)
 			die_usage(argv[0]);
 	}
 
-	if(vec_f2d_alloc(&a, n, k) ||
-	   vec_f2d_alloc(&b, k, m) ||
-	   vec_f2d_alloc(&o, n, m) ||
-	   vec_f2d_alloc(&o_ref, n, m))
-	{
-		fprintf(stderr, "Allocation failed");
-		return 1;
-	}
+	test_u8(verbose);
+	test_u16(verbose);
+	test_u32(verbose);
+        test_u64(verbose);
 
-	init_matrix(&a);
-	init_matrix(&b);
-
-	if(verbose) {
-		puts("B:");
-		vec_f2d_dump(&b);
-		puts("");
-
-		puts("O:");
-		vec_f2d_dump(&o);
-		puts("");
-	}
-
-	mm(VEC2D_ARGS(&a), VEC2D_ARGS(&b), VEC2D_ARGS(&o));
-	mm_refimpl(&a, &b, &o_ref);
-
-	if(verbose) {
-		puts("Result O:");
-		vec_f2d_dump(&o);
-		puts("");
-
-		puts("Reference O:");
-		vec_f2d_dump(&o_ref);
-		puts("");
-	}
-
-	if(!vec_f2d_compare(&o, &o_ref)) {
-	        fputs("Result differs from reference result\n", stderr);
-		exit(1);
-	}
-
-	vec_f2d_destroy(&a);
-	vec_f2d_destroy(&b);
-	vec_f2d_destroy(&o);
-	vec_f2d_destroy(&o_ref);
+	test_i8(verbose);
+	test_i16(verbose);
+	test_i32(verbose);
+        test_i64(verbose);
 
 	return 0;
 }

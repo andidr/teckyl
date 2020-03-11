@@ -1,0 +1,4 @@
+def mv(uint64(M,K) A, uint64(K) x) -> (uint64(M) C)
+{
+  C(i) +=! 18446744073709551615u64 * A(i,k) * x(k) where i in 0:M, k in 0:K
+}
