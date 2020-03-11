@@ -25,16 +25,27 @@ static const char *getTypeAsString(mlir::Type t) {
     return "f32";
   else if (t.isF64())
     return "f64";
-  else if (t.isInteger(8))
-    return "i8";
-  else if (t.isInteger(16))
-    return "i16";
-  else if (t.isInteger(32))
-    return "i32";
-  else if (t.isInteger(64))
-    return "i64";
-  else if (t.isIndex())
+  else if (t.isSignedInteger()) {
+    if (t.isSignedInteger(8))
+      return "i8";
+    else if (t.isSignedInteger(16))
+      return "i16";
+    else if (t.isSignedInteger(32))
+      return "i32";
+    else if (t.isSignedInteger(64))
+      return "i64";
+  } else if (t.isUnsignedInteger()) {
+    if (t.isUnsignedInteger(8))
+      return "u8";
+    else if (t.isUnsignedInteger(16))
+      return "u16";
+    else if (t.isUnsignedInteger(32))
+      return "u32";
+    else if (t.isUnsignedInteger(64))
+      return "u64";
+  } else if (t.isIndex())
     return "index";
+
   llvm_unreachable("Cannot determine name for type");
 }
 
@@ -77,8 +88,10 @@ static inline unsigned int getMLIRIntTypeBits(mlir::Type &t) {
 }
 
 static inline bool isMLIRIntType(mlir::Type &t) {
-  return t.isInteger(8) || t.isInteger(16) || t.isInteger(32) ||
-         t.isInteger(64);
+  return t.isSignedInteger(8) || t.isSignedInteger(16) ||
+         t.isSignedInteger(32) || t.isSignedInteger(64) ||
+         t.isUnsignedInteger(8) || t.isUnsignedInteger(16) ||
+         t.isUnsignedInteger(32) || t.isUnsignedInteger(64);
 }
 
 using IteratorBoundsMap =
@@ -159,13 +172,21 @@ protected:
     case lang::TK_FLOAT64:
       return getFloatType(kind);
     case lang::TK_INT8:
-      return builder.getIntegerType(8);
+      return builder.getIntegerType(8, true);
     case lang::TK_INT16:
-      return builder.getIntegerType(16);
+      return builder.getIntegerType(16, true);
     case lang::TK_INT32:
-      return builder.getIntegerType(32);
+      return builder.getIntegerType(32, true);
     case lang::TK_INT64:
-      return builder.getIntegerType(64);
+      return builder.getIntegerType(64, true);
+    case lang::TK_UINT8:
+      return builder.getIntegerType(8, false);
+    case lang::TK_UINT16:
+      return builder.getIntegerType(16, false);
+    case lang::TK_UINT32:
+      return builder.getIntegerType(32, false);
+    case lang::TK_UINT64:
+      return builder.getIntegerType(64, false);
     case lang::TK_SIZET:
       return builder.getIndexType();
     default:
@@ -235,17 +256,24 @@ static bool convertValue(mlir::OpBuilder &builder, mlir::Value &v, mlir::Type t,
     return true;
   } else if (isMLIRIntType(tV) && isMLIRIntType(t) &&
              getMLIRIntTypeBits(tV) < getMLIRIntTypeBits(t)) {
-    // TODO: When adding support for unsigned integers, use
-    // ZeroExtendIOp
-    v = builder.create<mlir::SignExtendIOp>(location, v, t);
-    return true;
+    if (tV.isSignedInteger() && t.isSignedInteger()) {
+      v = builder.create<mlir::SignExtendIOp>(location, v, t);
+      return true;
+    } else if (tV.isUnsignedInteger()) {
+      v = builder.create<mlir::ZeroExtendIOp>(location, v, t);
+      return true;
+    }
   } else if (isMLIRIntType(tV) && isMLIRFloatType(t)) {
     unsigned int intBits = getMLIRIntTypeBits(tV);
     unsigned int mantissaBits = getMLIRFloatTypeMantissaBits(t);
 
     if (intBits <= mantissaBits) {
-      // FIXME: This is only correct for signed integers
-      v = builder.create<mlir::SIToFPOp>(location, v, t);
+      mlir::IntegerType iType = tV.cast<mlir::IntegerType>();
+
+      if (iType.isSigned())
+        v = builder.create<mlir::SIToFPOp>(location, v, t);
+      else
+        v = builder.create<mlir::UIToFPOp>(location, v, t);
       return true;
     }
   }
@@ -382,17 +410,10 @@ public:
       }
     } else if (targetType.isa<mlir::IntegerType>()) {
       mlir::IntegerType iType = targetType.cast<mlir::IntegerType>();
+      llvm::APInt apint(iType.getWidth(), cst, 10);
 
-      std::istringstream iss(cst);
-      int64_t icst;
-
-      if (!(iss >> icst)) {
-        mlirgen::Exception err("Could not build integer constant");
-        THROW_OR_ASSERT(err);
-      }
-
-      return builder.create<mlir::ConstantIntOp>(location, icst,
-                                                 iType.getWidth());
+      return builder.create<mlir::ConstantIntOp>(
+          location, apint, iType.getWidth(), iType.isSigned());
     } else if (targetType.isa<mlir::IndexType>()) {
       std::istringstream iss(cst);
       int64_t icst;
