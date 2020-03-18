@@ -58,3 +58,13 @@ def mm_i64(int64(M,K) A, int64(K,N) B) -> (int64(M,N) C)
 {
   C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
 }
+
+def mm_f32(float(M,K) A, float(K,N) B) -> (float(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}
+
+def mm_f64(double(M,K) A, double(K,N) B) -> (double(M,N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:K, j in 0:N
+}

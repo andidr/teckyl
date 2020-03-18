@@ -123,6 +123,9 @@ DECL_MM_TEST(i16, uint16_t, vec_i162d)
 DECL_MM_TEST(i32, uint32_t, vec_i322d)
 DECL_MM_TEST(i64, uint64_t, vec_i642d)
 
+DECL_MM_TEST(f32, float, vec_f2d)
+DECL_MM_TEST(f64, double, vec_d2d)
+
 void die_usage(const char* program_name)
 {
 	fprintf(stderr, "Usage: %s [-v]\n", program_name);

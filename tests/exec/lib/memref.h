@@ -103,6 +103,7 @@
 	}
 
 DECL_VEC2D_TYPE(vec_f2d, float, "%f")
+DECL_VEC2D_TYPE(vec_d2d, double, "%f")
 DECL_VEC2D_TYPE(vec_u82d, uint8_t, "%" PRIu8)
 DECL_VEC2D_TYPE(vec_u162d, uint16_t, "%" PRIu16)
 DECL_VEC2D_TYPE(vec_u322d, uint32_t, "%" PRIu32)
