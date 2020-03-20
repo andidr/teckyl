@@ -14,6 +14,8 @@ add_llvm_executable(teckyl
   tc/lang/parser.cc
   tc/lang/error_report.h
   tc/lang/sema.h
+  tc/lang/ranges.h
+  tc/lang/ranges.cpp
   tc/utils/compiler_options.h
   Exception.h
   lang_affine.h

@@ -35,6 +35,8 @@ public:
   bool emitWarnings = true;
   /// Treat warnings in TC to Halide conversion as exceptions.
   bool throwWarnings = false;
+  /// Print ranges determined in semantic analysis
+  bool printRanges = false;
 };
 
 } // namespace tc

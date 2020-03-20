@@ -18,8 +18,10 @@
 
 #include <unordered_set>
 
+#include "teckyl/PrefixedOStream.h"
 #include "teckyl/tc/lang/builtins.h"
 #include "teckyl/tc/lang/error_report.h"
+#include "teckyl/tc/lang/ranges.h"
 #include "teckyl/tc/lang/tree.h"
 #include "teckyl/tc/lang/tree_views.h"
 #include "teckyl/tc/utils/compiler_options.h"
@@ -53,6 +55,7 @@ struct TypeInfo {
       TYPE_INFO_OPTION(TK_FLOAT64, Float, 64)
       TYPE_INFO_OPTION(TK_FLOAT, Float, 32)
       TYPE_INFO_OPTION(TK_DOUBLE, Float, 64)
+      TYPE_INFO_OPTION(TK_SIZET, UInt, 64)
 
 #undef TYPE_INFO_OPTION
     default:
@@ -277,6 +280,21 @@ struct Sema {
       for (auto t : checked->trees()) {
         expectIntegral(t);
       }
+
+      {
+        auto tt = type;
+        auto output_annotation = annotated_output_types.find(ident.name());
+        if (output_annotation != annotated_output_types.end())
+          tt = TensorType(output_annotation->second);
+
+        for (int i = 0; i < type.dims().size(); i++) {
+          ranges_to_infer.addConstraints(
+              std::make_shared<teckyl::ranges::Constant>(0),
+              teckyl::ranges::Expr::fromTreeRef(a.arguments()[i],
+                                                rangeParameters),
+              teckyl::ranges::Expr::fromTreeRef(tt.dims()[i], rangeParameters));
+        }
+      }
       return withType(Access::create(exp->range(), ident, checked),
                       type.scalarTypeTree());
     } break;
@@ -363,6 +381,23 @@ struct Sema {
     }
   }
 
+  void addRangeParameters(TreeRef tensorType) {
+    std::function<TreeRef(TreeRef)> addRecursive = [&](TreeRef t) -> TreeRef {
+      if (t->kind() == TK_IDENT) {
+        const std::string name = Ident(t).name();
+        if (rangeParameters.count(name) == 0)
+          rangeParameters.insert(name);
+      }
+
+      for (auto tt : t->trees())
+        tt->map(addRecursive);
+
+      return t;
+    };
+
+    addRecursive(tensorType);
+  }
+
   // This is the entry function for semantic analysis. It is called by
   // tc2halide to associate type with each node of the tree and to also make
   // sure that the tree is sematically correct. For example: a variable
@@ -386,6 +421,7 @@ struct Sema {
     for (auto r : func.returns()) {
       if (!r.typeIsInferred()) {
         annotated_output_types.emplace(r.ident().name(), r.tensorType());
+        addRangeParameters(r.tensorType());
       }
     }
 
@@ -395,6 +431,9 @@ struct Sema {
     for (auto p : func.params()) {
       nonTemporaries.insert(p.ident().name());
       inputParameters.insert(p.ident().name());
+      if (!p.typeIsInferred()) {
+        addRangeParameters(p.tensorType());
+      }
     }
     for (auto r : func.returns()) {
       nonTemporaries.insert(r.ident().name());
@@ -406,6 +445,9 @@ struct Sema {
         checkList(func.returns(), [&](TreeRef r) { return checkReturn(r); });
     auto r =
         Def::create(func.range(), func.name(), params_, returns_, statements_);
+
+    rangeParameters.clear();
+
     return r;
   }
 
@@ -468,6 +510,12 @@ struct Sema {
     lookup(index_env, rc.ident(), true);
     auto s = expectIntegral(checkExp(rc.start(), false));
     auto e = expectIntegral(checkExp(rc.end(), false));
+
+    ranges_to_infer.addConstraints(
+        teckyl::ranges::Expr::fromTreeRef(s, rangeParameters),
+        teckyl::ranges::Expr::fromTreeRef(rc.ident(), rangeParameters),
+        teckyl::ranges::Expr::fromTreeRef(e, rangeParameters));
+
     return RangeConstraint::create(rc.range(), rc.ident(), s, e);
   }
 
@@ -492,15 +540,24 @@ struct Sema {
   TreeRef checkStmt(TreeRef stmt_) {
     auto stmt = Comprehension(stmt_);
 
+    const std::string name = stmt.ident().name();
+
+    const auto tr = lookup(annotated_output_types, stmt.ident(), true);
+    const auto tt = TensorType(tr);
+    const auto dims = List(tt.dims());
+
     // register index variables (non-reductions)
-    for (const auto &index : stmt.indices()) {
-      std::string idx = index.name();
+    for (int i = 0; i < stmt.indices().size(); i++) {
+      // for (const auto &index : stmt.indices()) {
+      const auto &index = Ident(stmt.indices()[i]);
+      ranges_to_infer.addRange(
+          index.name(), std::make_shared<teckyl::ranges::Constant>(0),
+          teckyl::ranges::Expr::fromTreeRef(dims[i], rangeParameters));
       auto typ = indexType(index);
       insert(index_env, index, typ, true);
     }
 
     // check that the input is not used for output - inputs are immutable
-    std::string name = stmt.ident().name();
     if (inputParameters.count(name) > 0) {
       ErrorReport err(stmt_);
       err << "TC inputs are immutable";
@@ -606,9 +663,19 @@ struct Sema {
       llvm_unreachable(err.what());
     }
 
+    if (compilerOptions.printRanges) {
+      std::stringstream ss;
+      ss << stmt.range().filename() << ":" << stmt.range().startLine() << ": ";
+
+      teckyl::PrefixedOStream pos(ss.str(), std::cout);
+      pos << ranges_to_infer;
+    }
+
     // clear the per-statement environments to get ready for the next statement
     index_env.clear();
     let_env.clear();
+
+    ranges_to_infer.clear();
 
     return result;
   }
@@ -710,6 +777,9 @@ private:
 
   std::unordered_set<std::string> inputParameters;
   std::unordered_set<std::string> nonTemporaries;
+
+  teckyl::ranges::InferenceProblem ranges_to_infer; // per-statement
+  std::unordered_set<std::string> rangeParameters;  // per-function
 
   // TC compilation flow options.
   tc::CompilerOptions compilerOptions;
