@@ -229,10 +229,10 @@ allIteratorsIndexTensorDimension(const std::set<std::string> &iterators,
   std::set<std::string> directIterators;
 
   mapRecursive(e, [&](const lang::TreeRef &t) {
-    if (t->kind() == lang::TK_APPLY) {
-      const lang::Apply apply(t);
+    if (t->kind() == lang::TK_ACCESS) {
+      const lang::Access access(t);
 
-      for (const lang::TreeRef &idx : apply.arguments()) {
+      for (const lang::TreeRef &idx : access.arguments()) {
         if (idx->kind() == lang::TK_IDENT) {
           directIterators.insert(lang::Ident(idx).name());
         }
@@ -301,15 +301,15 @@ static inline bool directIteratorDomainsMatchTensorDimensions(
 
   // Check indexing of the input tensors
   return mapRecursiveWhile(c.rhs(), [&](const lang::TreeRef &e) {
-    if (e->kind() == lang::TK_APPLY) {
-      lang::Apply apply(e);
+    if (e->kind() == lang::TK_ACCESS) {
+      lang::Access access(e);
 
       size_t i = 0;
-      for (const lang::TreeRef &arg : apply.arguments()) {
+      for (const lang::TreeRef &arg : access.arguments()) {
         if (arg->kind() == lang::TK_IDENT) {
           if (!iteratorDomainMatchesTensorDimension(paramSpecs, bounds,
                                                     lang::Ident(arg).name(),
-                                                    apply.name().name(), i)) {
+                                                    access.name().name(), i)) {
             return false;
           }
         }

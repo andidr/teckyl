@@ -4,6 +4,7 @@
 #include <set>
 
 #include "teckyl/tc/lang/parser.h"
+#include "teckyl/tc/lang/sema.h"
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <mlir/Analysis/Verifier.h>
@@ -68,14 +69,17 @@ void dumpMLIR(const std::map<std::string, lang::Def> &tcs) {
   mlir::ModuleOp module;
   mlir::OpBuilder builder(&context);
   teckyl::MLIRGenOptions options;
+  lang::Sema sema;
 
   options.force_std_loops = forceStdLoops;
 
   module = mlir::ModuleOp::create(builder.getUnknownLoc());
 
   for (auto &tc : tcs) {
-    mlir::FuncOp f =
-        teckyl::buildMLIRFunction(context, tc.first, tc.second, options);
+    lang::TreeRef checked = sema.checkFunction(tc.second);
+
+    mlir::FuncOp f = teckyl::buildMLIRFunction(context, tc.first,
+                                               lang::Def(checked), options);
 
     module.push_back(f);
   }

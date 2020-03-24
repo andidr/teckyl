@@ -55,7 +55,7 @@ bool isAffine(const lang::TreeRef &e, const std::set<std::string> &syms) {
     return isIntType(lang::Const(e).type()->kind());
   case lang::TK_IDENT:
     return true;
-  case lang::TK_APPLY:
+  case lang::TK_ACCESS:
     return false;
   case '+':
   case '-': {
@@ -111,8 +111,8 @@ bool hasNonAffineIndexing(const lang::TreeRef &e,
   switch (e->kind()) {
   case lang::TK_CONST:
     return false;
-  case lang::TK_APPLY: {
-    for (const lang::TreeRef &arg : lang::Apply(e).arguments())
+  case lang::TK_ACCESS: {
+    for (const lang::TreeRef &arg : lang::Access(e).arguments())
       if (!isAffine(arg, syms))
         return true;
 

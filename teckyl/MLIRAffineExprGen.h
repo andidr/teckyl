@@ -21,13 +21,13 @@ public:
                     const std::map<std::string, unsigned int> &iteratorDims)
       : iteratorDims(iteratorDims), context(context) {}
 
-  // Builds an AffineExpr for each of the arguments of `apply` and
+  // Builds an AffineExpr for each of the arguments of `access` and
   // returns the result in a vector.
   std::vector<mlir::AffineExpr>
-  buildAffineExpressions(const lang::Apply &apply) {
+  buildAffineExpressions(const lang::Access &access) {
     std::vector<mlir::AffineExpr> res;
 
-    for (const lang::TreeRef &idxExpr : apply.arguments())
+    for (const lang::TreeRef &idxExpr : access.arguments())
       res.push_back(buildAffineExpression(idxExpr));
 
     return res;

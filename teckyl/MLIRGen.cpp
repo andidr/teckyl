@@ -459,8 +459,8 @@ public:
     return builder.create<mlir::LoadOp>(loc(ident.range()), tensor, argVals);
   }
 
-  // Translates a TC apply expression into an MLIR load operation.
-  virtual mlir::LoadOp buildIndexLoadExpr(const lang::Apply &a) {
+  // Translates a TC access expression into an MLIR load operation.
+  virtual mlir::LoadOp buildIndexLoadExpr(const lang::Access &a) {
     return buildIndexLoadExpr(a.name(), a.arguments());
   }
 
@@ -515,8 +515,8 @@ public:
       return buildConstant(lang::Const(t));
     case lang::TK_IDENT:
       return buildIdent(lang::Ident(t));
-    case lang::TK_APPLY:
-      return buildIndexLoadExpr(lang::Apply(t));
+    case lang::TK_ACCESS:
+      return buildIndexLoadExpr(lang::Access(t));
     default:
       std::stringstream ss;
       ss << "Unknown tree type: '" << (int)t->kind() << "'";
@@ -861,15 +861,15 @@ private:
                                     regionBuilder);
   }
 
-  // Collects all apply expressions that are descendants of t in an
+  // Collects all access expressions that are descendants of t in an
   // arbitrary order
-  std::vector<lang::Apply> collectTensorAccessesSeq(const lang::TreeRef &t) {
-    std::vector<lang::Apply> res;
+  std::vector<lang::Access> collectTensorAccessesSeq(const lang::TreeRef &t) {
+    std::vector<lang::Access> res;
 
     // Collect all tensor accesses in subexpressions
     mapRecursive(t, [&](const lang::TreeRef &e) {
-      if (e->kind() == lang::TK_APPLY)
-        res.push_back(lang::Apply(e));
+      if (e->kind() == lang::TK_ACCESS)
+        res.push_back(lang::Access(e));
     });
 
     return res;
@@ -951,14 +951,15 @@ private:
                            const std::map<std::string, IteratorKind> &iterators,
                            const std::vector<std::string> &iteratorsSeq,
                            mlir::Location location) {
-    std::vector<lang::Apply> tensorAccesses = collectTensorAccessesSeq(c.rhs());
+    std::vector<lang::Access> tensorAccesses =
+        collectTensorAccessesSeq(c.rhs());
     std::vector<mlir::edsc::StructuredIndexed> inputs;
     std::set<std::string> accessedTensors;
     std::map<lang::TreeId, unsigned int> argIndexes;
 
     // Extract names of all tensors that are indexed on the rhs
-    for (const lang::Apply &apply : tensorAccesses)
-      accessedTensors.insert(apply.name().name());
+    for (const lang::Access &access : tensorAccesses)
+      accessedTensors.insert(access.name().name());
 
     // Add output tensor
     accessedTensors.insert(c.ident().name());
@@ -976,10 +977,10 @@ private:
     MLIRAffineExprGen affGen(builder.getContext(), iteratorDims);
 
     // Create one AffineExpr per access dimension of each tensor
-    // access; keep a mapping between apply expressions and the index
+    // access; keep a mapping between access expressions and the index
     // within the lists of input block arguments for the generated
     // linalg operation
-    for (const lang::Apply &a : tensorAccesses) {
+    for (const lang::Access &a : tensorAccesses) {
       std::vector<mlir::AffineExpr> aff = affGen.buildAffineExpressions(a);
 
       mlir::Value tensorValue = symTab.lookup(a.name().name());
@@ -1016,12 +1017,12 @@ private:
 
     // Region builder for the body of the linalg.generic
     // operation. The block arguments are the tensor elements from the
-    // apply expressions and the value at the current position in the
+    // access expressions and the value at the current position in the
     // output tensor.
     //
     // Generate MLIR expressions for the rhs tensor expression of the
     // comprehension, but use mappings to block arguments for all
-    // apply expressions.
+    // access expressions.
     auto regionBuilder = [&](mlir::ArrayRef<mlir::BlockArgument> blockArgs) {
       // Prepare mapping from lang::Tree IDs to block Arguments representing the
       // tensor reads
