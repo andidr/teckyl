@@ -60,13 +60,6 @@ struct TypeInfo {
       err << "Unhandled TC scalar type: " << scalar_type;
       llvm_unreachable(err.what());
     }
-
-    if (code_ == Code::Float && bits_ == 16) {
-      ErrorReport err(scalar_type);
-      err << "Half precision floating point not supported "
-          << "until we can make NVRTC include system headers";
-      llvm_unreachable(err.what());
-    }
   }
   int toScalarToken() const {
     switch (code()) {
