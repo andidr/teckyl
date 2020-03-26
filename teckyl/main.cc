@@ -20,12 +20,14 @@
 static llvm::cl::opt<std::string>
     inputFilename(llvm::cl::Positional, llvm::cl::desc("<input file>"),
                   llvm::cl::init("-"), llvm::cl::value_desc("filename"));
-enum Action { None, DumpAST, DumpMLIR };
+enum Action { None, DumpAST, DumpMLIR, DumpInference };
 
 static llvm::cl::opt<enum Action> emitAction(
     "emit", llvm::cl::desc("Select the kind of output desired"),
     llvm::cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
-    llvm::cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")));
+    llvm::cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")),
+    llvm::cl::values(clEnumValN(DumpInference, "inference",
+                                "output inference results")));
 
 static llvm::cl::opt<bool> forceStdLoops(
     "force-std-loops",
@@ -62,6 +64,18 @@ std::map<std::string, lang::Def> parse(const std::string &tc,
 void dumpAST(const std::map<std::string, lang::Def> &tcs) {
   for (const auto &res : tcs)
     std::cerr << res.second << std::endl;
+}
+
+// Dumps the inference results from the semantic analysis for a set of
+// kernels to stderr
+void dumpInference(const std::map<std::string, lang::Def> &tcs) {
+  tc::CompilerOptions co;
+  co.printRanges = true;
+
+  lang::Sema sema(co);
+
+  for (const auto &res : tcs)
+    auto func = sema.checkFunction(res.second);
 }
 
 // Generates an MLIR representation for each TC kernel and dumps a
@@ -116,6 +130,9 @@ int main(int argc, char **argv) {
       break;
     case Action::DumpMLIR:
       dumpMLIR(tcs);
+      break;
+    case Action::DumpInference:
+      dumpInference(tcs);
       break;
     default:
       THROW_OR_ASSERT(teckyl::Exception("Unknown action"));
