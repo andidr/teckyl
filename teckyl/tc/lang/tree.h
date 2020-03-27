@@ -175,7 +175,8 @@ static SourceRange mergeRanges(SourceRange c, const TreeList &others) {
         end_ch = c.endCharacter();
     }
 
-    c = SourceRange(c.file_ptr(), s, e, start_line, start_ch, end_line, end_ch);
+    c = SourceRange(c.source_ptr(), c.filename_ptr(), s, e, start_line,
+                    start_ch, end_line, end_ch);
   }
   return c;
 }

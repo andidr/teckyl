@@ -23,7 +23,8 @@
 namespace lang {
 
 struct Parser {
-  Parser(const std::string &str) : L(str), shared(sharedParserData()) {}
+  Parser(const std::string &str, const std::string &filename = "(unknown file)")
+      : L(str, filename), shared(sharedParserData()) {}
 
   TreeRef parseIdent() {
     auto t = L.expect(TK_IDENT);

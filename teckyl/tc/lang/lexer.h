@@ -367,22 +367,24 @@ private:
 
 SharedParserData &sharedParserData();
 
-// a range of a shared string 'file_' with functions to help debug by highlight
+// a range of a shared string 'source_' with functions to help debug by highlight
 // that
 // range.
 struct SourceRange {
-  SourceRange(const std::shared_ptr<std::string> &file_, size_t start_,
+  SourceRange(const std::shared_ptr<std::string> &source_,
+              const std::shared_ptr<std::string> &filename_, size_t start_,
               size_t end_, size_t start_line_, size_t start_ch_,
               size_t end_line_, size_t end_ch_)
-      : file_(file_), start_(start_), end_(end_), start_line_(start_line_),
-        start_ch_(start_ch_), end_line_(end_line_), end_ch_(end_ch_) {}
+      : source_(source_), filename_(filename_), start_(start_), end_(end_),
+        start_line_(start_line_), start_ch_(start_ch_), end_line_(end_line_),
+        end_ch_(end_ch_) {}
 
   const std::string text() const {
-    return file().substr(start(), end() - start());
+    return source().substr(start(), end() - start());
   }
   size_t size() const { return end() - start(); }
   void highlight(std::ostream &out) const {
-    const std::string &str = file();
+    const std::string &str = source();
     size_t begin = start();
     size_t end = start();
     while (begin > 0 && str[begin - 1] != '\n')
@@ -398,8 +400,10 @@ struct SourceRange {
     if (str.size() > 0 && str.back() != '\n')
       out << "\n";
   }
-  const std::string &file() const { return *file_; }
-  const std::shared_ptr<std::string> &file_ptr() const { return file_; }
+  const std::string &source() const { return *source_; }
+  const std::shared_ptr<std::string> &source_ptr() const { return source_; }
+  const std::string &filename() const { return *filename_; }
+  const std::shared_ptr<std::string> &filename_ptr() const { return filename_; }
   size_t start() const { return start_; }
   size_t end() const { return end_; }
 
@@ -410,7 +414,8 @@ struct SourceRange {
   size_t endCharacter() const { return end_ch_; }
 
 private:
-  std::shared_ptr<std::string> file_;
+  std::shared_ptr<std::string> source_;
+  std::shared_ptr<std::string> filename_;
   size_t start_;
   size_t end_;
   size_t start_line_;
@@ -461,10 +466,14 @@ struct Token {
 };
 
 struct Lexer {
-  std::shared_ptr<std::string> file;
-  Lexer(const std::string &str)
-      : file(std::make_shared<std::string>(str)), pos(0), line(1), ch(1),
-        cur_(TK_EOF, SourceRange(file, 0, 0, 0, 0, 0, 0)),
+  std::shared_ptr<std::string> source;
+  std::shared_ptr<std::string> filename;
+
+  Lexer(const std::string &source_,
+        const std::string &filename_ = "(unknown file)")
+      : source(std::make_shared<std::string>(source_)),
+        filename(std::make_shared<std::string>(filename_)), pos(0), line(1),
+        ch(1), cur_(TK_EOF, SourceRange(source, filename, 0, 0, 0, 0, 0, 0)),
         shared(sharedParserData()) {
     next();
   }
@@ -508,15 +517,16 @@ private:
     size_t start_line = line;
     size_t start_ch = ch;
 
-    assert(file);
-    if (!shared.match(*file, pos, &kind, &start, &length, &line, &ch)) {
+    assert(source);
+    if (!shared.match(*source, pos, &kind, &start, &length, &line, &ch)) {
       reportError(
           "a valid token",
-          Token((*file)[start], SourceRange(file, start, start + 1, start_line,
-                                            start_ch, start_line, start_ch)));
+          Token((*source)[start],
+                SourceRange(source, filename, start, start + 1, start_line,
+                            start_ch, start_line, start_ch)));
     }
-    auto t = Token(kind, SourceRange(file, start, start + length, start_line,
-                                     start_ch, line, ch));
+    auto t = Token(kind, SourceRange(source, filename, start, start + length,
+                                     start_line, start_ch, line, ch));
     pos = start + length;
     return t;
   }
