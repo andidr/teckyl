@@ -21,7 +21,8 @@ add_llvm_executable(teckyl
   MLIRAffineExprGen.h
   MLIRGen.cpp
   MLIRGen.h
-  main.cc)
+  main.cc
+  PrefixedOStream.h)
 
 target_compile_options(teckyl PRIVATE -fexceptions -fno-rtti)
 
