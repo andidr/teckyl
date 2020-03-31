@@ -1,0 +1,15 @@
+# CHECK-DAG: Range: 0 <= e < $E
+# CHECK-DAG: Range: 0 <= i1 < $N1
+# CHECK-DAG: Range: 0 <= i2 < $N2
+# CHECK-DAG: Range: 0 <= i3 < $N3
+# CHECK-DAG: Range: 0 <= k1 < $M1
+# CHECK-DAG: Range: 0 <= k2 < $M2
+# CHECK-DAG: Range: 0 <= k3 < $M3
+
+def interpolation(float(E,M1,M2,M3) u,
+                  float(N1,M1) A,
+		  float(N2,M2) B,
+		  float(N3,M3) C) -> (float(E,N1,N2,N3) v)
+{
+  v(e,i1,i2,i3) +=! A(i1,k1) * B(i2,k2) * C(i3,k3) * u(e,k1,k2,k3)
+}

@@ -1,0 +1,9 @@
+# CHECK-DAG: Range: 0 <= i < $K
+# CHECK-DAG: Range: 0 <= j < $N
+# CHECK-DAG: Range: 0 <= k < $L
+# CHECK-DAG: Range: 0 <= l < $M
+
+def mttkrp(float(K,L,M) B, float(M,N) D, float(L,N) C) -> (float(K,N) A)
+{
+  A(i,j) +=! B(i,k,l) * D(l,j) * C(k,j)
+}

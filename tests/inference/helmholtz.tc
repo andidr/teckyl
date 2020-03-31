@@ -1,0 +1,39 @@
+# CHECK-DAG: helmholtz.tc:49: Range: 0 <= i < $P
+# CHECK-DAG: helmholtz.tc:49: Range: 0 <= j < $P
+# CHECK-DAG: helmholtz.tc:49: Range: 0 <= k < $P
+# CHECK-DAG: helmholtz.tc:50: Range: 0 <= i < $P
+# CHECK-DAG: helmholtz.tc:50: Range: 0 <= j < $P
+# CHECK-DAG: helmholtz.tc:51: Range: 0 <= i < $P
+# CHECK-DAG: helmholtz.tc:51: Range: 0 <= j < $P
+# CHECK-DAG: helmholtz.tc:51: Range: 0 <= k < $P
+# CHECK-DAG: helmholtz.tc:53: Range: 0 <= i < $P
+# CHECK-DAG: helmholtz.tc:53: Range: 0 <= j < $P
+# CHECK-DAG: helmholtz.tc:53: Range: 0 <= k < $P
+# CHECK-DAG: helmholtz.tc:53: Range: 0 <= l < $P
+# CHECK-DAG: helmholtz.tc:53: Constraint: 0 < 4
+# CHECK-DAG: helmholtz.tc:53: Constraint: 0 <= 0
+# CHECK-DAG: helmholtz.tc:53: Constraint: 0 <= 1
+# CHECK-DAG: helmholtz.tc:53: Constraint: 0 <= 2
+# CHECK-DAG: helmholtz.tc:53: Constraint: 0 <= 3
+# CHECK-DAG: helmholtz.tc:53: Constraint: 1 < 4
+# CHECK-DAG: helmholtz.tc:53: Constraint: 2 < 4
+# CHECK-DAG: helmholtz.tc:53: Constraint: 3 < 4
+
+def kernel(float(P)     w,
+           float(P,P)   L,
+	   float(P,P,P) u,
+	   float(4)     d) -> (float(P,P,P) M,
+	   	      	       float(P,P)   LL,
+			       float(P,P,P) Mu,
+			       float(P,P,P) r)
+{
+  M (i,j,k) = w(i) * w(j) * w(k)
+  LL(i,j)  = L(i,j) / w(j)
+
+  Mu(i,j,k) = M(i,j,k) * u(i,j,k)
+
+  r(i,j,k) +=! d(0) * Mu(i,j,k) +
+               d(1) * LL(i,l) * Mu(l,j,k) +
+	       d(2) * LL(j,l) * Mu(i,l,k) +
+	       d(3) * LL(j,l) * Mu(k,i,l)
+}

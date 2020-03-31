@@ -1,0 +1,23 @@
+# CHECK-DAG: filter_2d.tc:33: Range: 0 <= i < $M
+# CHECK-DAG: filter_2d.tc:33: Range: 0 <= j < $N
+# CHECK-DAG: filter_2d.tc:33: Constraint: (j-1) < $N
+# CHECK-DAG: filter_2d.tc:33: Constraint: (j+1) < $N
+# CHECK-DAG: filter_2d.tc:33: Constraint: 0 <= (j-1)
+# CHECK-DAG: filter_2d.tc:33: Constraint: 0 <= (j+1)
+# CHECK-DAG: filter_2d.tc:34: Range: 0 <= k < $M
+# CHECK-DAG: filter_2d.tc:34: Range: 0 <= l < $N
+# CHECK-DAG: filter_2d.tc:34: Constraint: (k-1) < $M
+# CHECK-DAG: filter_2d.tc:34: Constraint: (k+1) < $M
+# CHECK-DAG: filter_2d.tc:34: Constraint: 0 <= (k-1)
+# CHECK-DAG: filter_2d.tc:34: Constraint: 0 <= (k+1)
+# CHECK-DAG: filter_2d.tc:35: Range: 0 <= m < $M
+# CHECK-DAG: filter_2d.tc:35: Range: 0 <= n < $N
+
+def filter(float(M,N) inp) -> (float(M,N) By,
+    		      	       float(M,N) Bx,
+			       float(M,N) out)
+{
+  By (i,j) +=! inp(i  ,j-1) + 4.0 * inp(i,j) + inp(i  ,j+1)
+  Bx (k,l) +=! By (k-1,l  ) + 4.0 * By (k,l) + By (k+1,l  )
+  out(m,n) +=! Bx(m,n) * (1.0/12.0)
+}

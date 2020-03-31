@@ -1,0 +1,27 @@
+# CHECK-DAG: interpolation_2.tc:38: Range: 0 <= e < $E
+# CHECK-DAG: interpolation_2.tc:38: Range: 0 <= i3 < $N3
+# CHECK-DAG: interpolation_2.tc:38: Range: 0 <= k1 < $M1
+# CHECK-DAG: interpolation_2.tc:38: Range: 0 <= k2 < $M2
+# CHECK-DAG: interpolation_2.tc:38: Range: 0 <= k3 < $M3
+# CHECK-DAG: interpolation_2.tc:39: Range: 0 <= e < $E
+# CHECK-DAG: interpolation_2.tc:39: Range: 0 <= i2 < $N2
+# CHECK-DAG: interpolation_2.tc:39: Range: 0 <= i3 < $N3
+# CHECK-DAG: interpolation_2.tc:39: Range: 0 <= k1 < $M1
+# CHECK-DAG: interpolation_2.tc:39: Range: 0 <= k2 < $M2
+# CHECK-DAG: interpolation_2.tc:40: Range: 0 <= e < $E
+# CHECK-DAG: interpolation_2.tc:40: Range: 0 <= i1 < $N1
+# CHECK-DAG: interpolation_2.tc:40: Range: 0 <= i2 < $N2
+# CHECK-DAG: interpolation_2.tc:40: Range: 0 <= i3 < $N3
+# CHECK-DAG: interpolation_2.tc:40: Range: 0 <= k1 < $M1
+
+def interpolation(float(E,M1,M2,M3) u,
+                  float(N1,M1) A,
+		  float(N2,M2) B,
+		  float(N3,M3) C) -> (float(E,M1,M2,N3) v1,
+		  	       	      float(E,M1,N2,N3) v2,
+				      float(E,N1,N2,N3) v3)
+{
+  v1(e,k1,k2,i3) +=! C(i3,k3) * u (e,k1,k2,k3)
+  v2(e,k1,i2,i3) +=! B(i2,k2) * v1(e,k1,k2,i3)
+  v3(e,i1,i2,i3) +=! A(i1,k1) * v2(e,k1,i2,i3)
+}

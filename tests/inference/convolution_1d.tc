@@ -1,0 +1,9 @@
+# CHECK-DAG: Range: 0 <= i < $M
+# CHECK-DAG: Range: 0 <= j < $N
+# CHECK-DAG: Constraint: (i+j) < $M
+# CHECK-DAG: Constraint: 0 <= (i+j)
+
+def convolution(float(M) A, float(N) B) -> (float(M) C)
+{
+  C(i) +=! A(i+j) * B(j) 
+}

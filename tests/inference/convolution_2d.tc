@@ -1,0 +1,13 @@
+# CHECK-DAG: Range: 0 <= i < $M
+# CHECK-DAG: Range: 0 <= j < $N
+# CHECK-DAG: Range: 0 <= r < $K
+# CHECK-DAG: Range: 0 <= s < $L
+# CHECK-DAG: Constraint: (i+r) < $M
+# CHECK-DAG: Constraint: (j+s) < $N
+# CHECK-DAG: Constraint: 0 <= (i+r)
+# CHECK-DAG: Constraint: 0 <= (j+s)
+
+def convolution(float(M,N) A, float(K) B, float (L) C) -> (float(M,N) D)
+{
+  D(i,j) +=! A(i+r,j+s) * B(r) * C(s) 
+}
