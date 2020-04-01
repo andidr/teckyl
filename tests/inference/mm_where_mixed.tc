@@ -1,0 +1,8 @@
+# CHECK-DAG: Range: 0 <= i < $M
+# CHECK-DAG: Range: 0 <= j < $N
+# CHECK-DAG: Range: 0 <= k < 256
+
+def mm(float(M,256) A, float(256,N) B) -> (float(M, N) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:M, k in 0:256, j in 0:N
+}

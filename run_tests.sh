@@ -21,6 +21,7 @@ export TECKYL="$PWD/bin/teckyl"
 export LLC="$PWD/llvm-project/llvm/bin/llc"
 export MLIR_OPT="$PWD/llvm-project/llvm/bin/mlir-opt"
 export MLIR_TRANSLATE="$PWD/llvm-project/llvm/bin/mlir-translate"
+export FILECHECK="$PWD/llvm-project/llvm/bin/FileCheck"
 
 [ -x "$TECKYL" ] || \
     die "Could not find teckyl binary." \
@@ -117,4 +118,33 @@ then
 else
     print_yellow "Binaries mlir-opt and mlir-translate haven't been built." \
 		 "Skipping execution tests."
+fi
+
+set pipefail
+
+if [ -x "$FILECHECK" ]
+then
+    find "$BASE_DIR/tests/inference" -type f -name "*.tc" -print0 | sort | \
+	while IFS= read -r -d '' SRC_FILE
+	do
+	    printf '%s' "Running inference test on $SRC_FILE... "
+
+	    # Suppress error messages from the shell
+	    exec 2> /dev/null
+	    ("$TECKYL" -emit=inference "$SRC_FILE" | "$FILECHECK" "$SRC_FILE") > "$TMP_LOGFILE" 2>&1
+	    RETVAL=$?
+	    exec 2> /dev/tty
+
+	    if [ $RETVAL -ne 0 ]
+	    then
+		print_red "failed"
+		echo
+		cat "$TMP_LOGFILE" >&2
+		exit 1
+	    else
+		print_green "success"
+	    fi
+	done
+else
+    print_yellow "FileCheck hasn't been built. Skipping inference tests."
 fi

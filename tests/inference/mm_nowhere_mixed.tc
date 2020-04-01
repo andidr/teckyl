@@ -1,0 +1,8 @@
+# CHECK-DAG: Range: 0 <= i < 128
+# CHECK-DAG: Range: 0 <= j < 512
+# CHECK-DAG: Range: 0 <= k < $K
+
+def mm(float(128,K) A, float(K,512) B) -> (float(128, 512) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j)
+}

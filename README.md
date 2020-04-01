@@ -52,10 +52,10 @@ e.g.,
   * ``cd build``
   * ``../run_tests.sh``
 
-Some of the tests require `mlir-opt`, `mlir-translate` and `llc`. To
-build these binaries, execute
+Some of the tests require `mlir-opt`, `mlir-translate`, `llc` and
+`FileCheck`. To build these binaries, execute
 
-  * ``make -j mlir-opt mlir-translate llc``
+  * ``make -j mlir-opt mlir-translate llc FileCheck``
 
 in the build directory before launching `run_tests.sh`.
 

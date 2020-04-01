@@ -1,0 +1,8 @@
+# CHECK-DAG: Range: 0 <= i < $M
+# CHECK-DAG: Range: 0 <= i < $N
+# CHECK-DAG: Range: 0 <= i < $K
+
+def foo(float(M) x, float(N) y) -> (float(K) C)
+{
+  C(i) +=! x(i) * y(i) where i in 0:12
+}
