@@ -1,6 +1,7 @@
 # CHECK-DAG: Range: 0 <= i < $M
 # CHECK-DAG: Range: 0 <= i < $N
 # CHECK-DAG: Range: 0 <= i < $K
+# CHECK-DAG: Range: 0 <= i < 12
 
 def foo(float(M) x, float(N) y) -> (float(K) C)
 {
