@@ -15,7 +15,7 @@ namespace ranges {
 
 // Kinds of (non-abstract) expressions,
 // used for comparison operator '<':
-enum ExprKind { EK_BinOp, EK_Variable, EK_Parameter, EK_Constant };
+enum ExprKind { EK_BinOp, EK_Neg, EK_Variable, EK_Parameter, EK_Constant };
 
 struct Expr;
 using ExprRef = std::shared_ptr<Expr>;
@@ -27,6 +27,7 @@ struct Expr {
   virtual bool isConstExpr() const = 0;
   virtual bool isAffineExpr() const = 0;
   virtual bool isBinOp() const = 0;
+  virtual bool isNeg() const = 0;
   virtual bool isConstant() const = 0;
   virtual bool isSymbol() const = 0;
   virtual bool isVariable() const = 0;
@@ -81,6 +82,7 @@ struct BinOp : public Expr {
   }
 
   bool isBinOp() const final { return true; };
+  bool isNeg() const final { return false; };
   bool isConstant() const final { return false; }
   bool isSymbol() const final { return false; }
   bool isVariable() const final { return false; }
@@ -113,11 +115,51 @@ struct BinOp : public Expr {
   }
 };
 
+struct Neg : public Expr {
+  std::shared_ptr<Expr> expr;
+
+  explicit Neg(std::shared_ptr<Expr> arg) : Expr(EK_Neg), expr(arg) {}
+
+  bool isConstExpr() const final { return expr->isConstExpr(); }
+
+  bool isAffineExpr() const final { return expr->isAffineExpr(); }
+
+  bool isBinOp() const final { return false; };
+  bool isNeg() const final { return true; };
+  bool isConstant() const final { return false; }
+  bool isSymbol() const final { return false; }
+  bool isVariable() const final { return false; }
+  bool isParameter() const final { return false; }
+
+  std::ostream &print(std::ostream &out) const final;
+
+  bool operator==(const Expr &other) const final {
+    if (!other.isNeg())
+      return false;
+
+    const auto o = static_cast<const Neg *>(&other);
+    return (this->expr == o->expr);
+  }
+
+  bool operator<(const Expr &other) const final {
+    if (!other.isNeg())
+      return getKind() < other.getKind();
+
+    const auto o = static_cast<const Neg *>(&other);
+
+    if (this->expr < o->expr)
+      return true;
+    else
+      return false;
+  }
+};
+
 struct Symbol : public Expr {
   std::string n;
 
   bool isAffineExpr() const final { return true; }
   bool isBinOp() const final { return false; };
+  bool isNeg() const final { return false; };
   bool isConstant() const final { return false; }
   bool isSymbol() const final { return true; }
 
@@ -188,6 +230,7 @@ struct Constant : public Expr {
   bool isConstExpr() const final { return true; }
   bool isAffineExpr() const final { return true; }
   bool isBinOp() const final { return false; }
+  bool isNeg() const final { return false; };
   bool isConstant() const final { return true; }
   bool isSymbol() const final { return false; }
   bool isVariable() const final { return false; }

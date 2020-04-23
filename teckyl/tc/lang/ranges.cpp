@@ -24,8 +24,18 @@ static enum optype opFromLangKind(int kind) {
 ExprRef Expr::fromTreeRef(const lang::TreeRef &t,
                           const std::unordered_set<std::string> &rangeParams) {
   switch (t->kind()) {
+  case '-': {
+    if (t->trees().size() == 1) // Unary negation
+      return std::make_shared<Neg>(fromTreeRef(t->trees()[0], rangeParams));
+    else if (t->trees().size() == 2) // Binary minus
+      return std::make_shared<BinOp>(opFromLangKind(t->kind()),
+                                     fromTreeRef(t->trees()[0], rangeParams),
+                                     fromTreeRef(t->trees()[1], rangeParams));
+    else
+      llvm_unreachable("Invalid number of operands");
+  }
+
   case '+':
-  case '-':
   case '*':
     return std::make_shared<BinOp>(opFromLangKind(t->kind()),
                                    fromTreeRef(t->trees()[0], rangeParams),
@@ -79,6 +89,10 @@ std::ostream &operator<<(std::ostream &out, cmptype op) {
 
 std::ostream &BinOp::print(std::ostream &out) const {
   return out << "(" << *l << op << *r << ")";
+}
+
+std::ostream &Neg::print(std::ostream &out) const {
+  return out << "(-" << *expr << ")";
 }
 
 std::ostream &Variable::print(std::ostream &out) const { return out << n; }
