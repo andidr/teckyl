@@ -1,4 +1,4 @@
-#include "teckyl/tc/lang/ranges.h"
+#include "teckyl/tc/lang/inference/expr.h"
 #include <sstream>
 
 namespace teckyl {
@@ -57,6 +57,10 @@ ExprRef Expr::fromTreeRef(const lang::TreeRef &t,
   llvm_unreachable("Unknown kind");
 }
 
+void Expr::visit(ExprVisitor &v) const {
+  v.visitExpr(this);
+}
+  
 std::ostream &operator<<(std::ostream &out, optype op) {
   switch (op) {
   case PLUS:
@@ -70,53 +74,46 @@ std::ostream &operator<<(std::ostream &out, optype op) {
   }
 }
 
-std::ostream &operator<<(std::ostream &out, cmptype op) {
-  switch (op) {
-  case LT:
-    return out << "<";
-  case LE:
-    return out << "<=";
-  case EQ:
-    return out << "==";
-  case GE:
-    return out << ">=";
-  case GT:
-    return out << "<";
-  default:
-    llvm_unreachable("Unknown comparison type");
-  }
-}
-
 std::ostream &BinOp::print(std::ostream &out) const {
   return out << "(" << *l << op << *r << ")";
+}
+
+void BinOp::visit(ExprVisitor &v) const {
+  v.visitBinOp(this);
 }
 
 std::ostream &Neg::print(std::ostream &out) const {
   return out << "(-" << *expr << ")";
 }
 
-std::ostream &Variable::print(std::ostream &out) const { return out << n; }
+void Neg::visit(ExprVisitor &v) const {
+  v.visitNeg(this);
+}
+
+void Symbol::visit(ExprVisitor &v) const {
+  v.visitSymbol(this);
+}
+  
+std::ostream &Variable::print(std::ostream &out) const {
+  return out << n;
+}
+
+void Variable::visit(ExprVisitor &v) const {
+  v.visitVariable(this);
+}
+  
 std::ostream &Parameter::print(std::ostream &out) const {
   return out << "$" << n;
 }
+
+void Parameter::visit(ExprVisitor &v) const {
+  v.visitParameter(this);
+}
+
 std::ostream &Constant::print(std::ostream &out) const { return out << val; }
 
-std::ostream &operator<<(std::ostream &out, const Constraint &c) {
-  return out << *c.l << " " << c.op << " " << *c.r;
-}
-
-std::ostream &operator<<(std::ostream &out, const Range &r) {
-  return out << *r.low << " <= " << r.n << " < " << *r.up;
-}
-
-std::ostream &operator<<(std::ostream &out, const InferenceProblem &p) {
-  for (const Range &r : p.solved)
-    out << "Range: " << r << std::endl;
-
-  for (const Constraint &c : p.constraints)
-    out << "Constraint: " << c << std::endl;
-
-  return out;
+void Constant::visit(ExprVisitor &v) const {
+  v.visitConstant(this);
 }
 
 } // namespace ranges

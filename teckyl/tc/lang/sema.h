@@ -21,7 +21,7 @@
 #include "teckyl/PrefixedOStream.h"
 #include "teckyl/tc/lang/builtins.h"
 #include "teckyl/tc/lang/error_report.h"
-#include "teckyl/tc/lang/ranges.h"
+#include "teckyl/tc/lang/inference/ranges.h"
 #include "teckyl/tc/lang/tree.h"
 #include "teckyl/tc/lang/tree_views.h"
 #include "teckyl/tc/utils/compiler_options.h"

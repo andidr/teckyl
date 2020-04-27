@@ -14,8 +14,10 @@ add_llvm_executable(teckyl
   tc/lang/parser.cc
   tc/lang/error_report.h
   tc/lang/sema.h
-  tc/lang/ranges.h
-  tc/lang/ranges.cpp
+  tc/lang/inference/expr.h
+  tc/lang/inference/expr.cpp
+  tc/lang/inference/ranges.h
+  tc/lang/inference/ranges.cpp
   tc/utils/compiler_options.h
   Exception.h
   lang_affine.h

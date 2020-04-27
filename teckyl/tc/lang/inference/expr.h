@@ -1,12 +1,11 @@
-#ifndef TECKYL_TC_RANGES_H
-#define TECKYL_TC_RANGES_H
+#ifndef TECKYL_TC_INFERENCE_EXPR_H
+#define TECKYL_TC_INFERENCE_EXPR_H
 
 #include "teckyl/tc/lang/tree_views.h"
 
 #include <llvm/Support/ErrorHandling.h>
 #include <memory>
 #include <ostream>
-#include <set>
 #include <string>
 #include <unordered_set>
 
@@ -16,23 +15,30 @@ namespace ranges {
 // Kinds of (non-abstract) expressions,
 // used for comparison operator '<':
 enum ExprKind { EK_BinOp, EK_Neg, EK_Variable, EK_Parameter, EK_Constant };
-
+  
 struct Expr;
 using ExprRef = std::shared_ptr<Expr>;
-
+  
+struct ExprVisitor;
+  
 // Base class for expressions for range inference
 struct Expr {
   explicit Expr(ExprKind k) : kind(k) {}
 
   virtual bool isConstExpr() const = 0;
   virtual bool isAffineExpr() const = 0;
+  virtual bool isSumExpr() const = 0;
+  virtual bool isMonomialExpr() const = 0;
+  
   virtual bool isBinOp() const = 0;
   virtual bool isNeg() const = 0;
   virtual bool isConstant() const = 0;
   virtual bool isSymbol() const = 0;
   virtual bool isVariable() const = 0;
   virtual bool isParameter() const = 0;
-
+  
+  virtual void visit(ExprVisitor &v) const;
+  
   virtual std::ostream &print(std::ostream &out) const = 0;
 
   friend std::ostream &operator<<(std::ostream &out, const Expr &e) {
@@ -81,6 +87,17 @@ struct BinOp : public Expr {
     }
   }
 
+  bool isSumExpr() const final {
+    return (op == PLUS) || (op == MINUS);
+  }
+
+  bool isMonomialExpr() const final {
+    if (op == TIMES)
+      return l->isMonomialExpr() && r->isMonomialExpr();
+    else
+      return false;
+  }
+  
   bool isBinOp() const final { return true; };
   bool isNeg() const final { return false; };
   bool isConstant() const final { return false; }
@@ -88,6 +105,8 @@ struct BinOp : public Expr {
   bool isVariable() const final { return false; }
   bool isParameter() const final { return false; }
 
+  void visit(ExprVisitor &v) const final;
+  
   std::ostream &print(std::ostream &out) const final;
 
   bool operator==(const Expr &other) const final {
@@ -124,6 +143,12 @@ struct Neg : public Expr {
 
   bool isAffineExpr() const final { return expr->isAffineExpr(); }
 
+  bool isSumExpr() const final { return false; }
+
+  bool isMonomialExpr() const final {
+    return expr->isMonomialExpr();
+  }
+  
   bool isBinOp() const final { return false; };
   bool isNeg() const final { return true; };
   bool isConstant() const final { return false; }
@@ -131,6 +156,8 @@ struct Neg : public Expr {
   bool isVariable() const final { return false; }
   bool isParameter() const final { return false; }
 
+  void visit(ExprVisitor &v) const final;
+  
   std::ostream &print(std::ostream &out) const final;
 
   bool operator==(const Expr &other) const final {
@@ -158,11 +185,16 @@ struct Symbol : public Expr {
   std::string n;
 
   bool isAffineExpr() const final { return true; }
+  bool isSumExpr() const final { return false; }
+  bool isMonomialExpr() const final { return true; }
+  
   bool isBinOp() const final { return false; };
   bool isNeg() const final { return false; };
   bool isConstant() const final { return false; }
   bool isSymbol() const final { return true; }
 
+  virtual void visit(ExprVisitor &v) const override;
+  
 protected:
   explicit Symbol(const ExprKind k, const std::string &name)
       : Expr(k), n(name) {}
@@ -175,6 +207,8 @@ struct Variable : public Symbol {
   bool isVariable() const final { return true; }
   bool isParameter() const final { return false; }
 
+  void visit(ExprVisitor &v) const final;
+  
   std::ostream &print(std::ostream &out) const final;
 
   bool operator==(const Expr &other) const final {
@@ -201,6 +235,8 @@ struct Parameter : public Symbol {
   bool isVariable() const final { return false; }
   bool isParameter() const final { return true; }
 
+  void visit(ExprVisitor &v) const final;
+  
   std::ostream &print(std::ostream &out) const final;
 
   bool operator==(const Expr &other) const final {
@@ -229,6 +265,9 @@ struct Constant : public Expr {
 
   bool isConstExpr() const final { return true; }
   bool isAffineExpr() const final { return true; }
+  bool isSumExpr() const final { return false; }
+  bool isMonomialExpr() const final { return true; }
+  
   bool isBinOp() const final { return false; }
   bool isNeg() const final { return false; };
   bool isConstant() const final { return true; }
@@ -236,6 +275,8 @@ struct Constant : public Expr {
   bool isVariable() const final { return false; }
   bool isParameter() const final { return false; }
 
+  void visit(ExprVisitor &v) const final;
+  
   std::ostream &print(std::ostream &out) const final;
 
   bool operator==(const Expr &other) const final {
@@ -255,183 +296,22 @@ struct Constant : public Expr {
   }
 };
 
-enum cmptype { LT, LE, EQ, GE, GT };
+struct ExprVisitor {
+  // Derived classes *must* implement the
+  // visit methods for non-abstract expressions:
+  virtual void visitBinOp(const BinOp *) = 0;
+  virtual void visitNeg(const Neg *) = 0;
+  virtual void visitConstant(const Constant *) = 0;
+  virtual void visitVariable(const Variable *) = 0;
+  virtual void visitParameter(const Parameter *) = 0;
 
-struct Constraint {
-  std::shared_ptr<Expr> l;
-  cmptype op;
-  std::shared_ptr<Expr> r;
-
-  explicit Constraint(std::shared_ptr<Expr> left, cmptype operation,
-                      std::shared_ptr<Expr> right)
-      : l(left), op(operation), r(right) {}
-
-  explicit Constraint(const Constraint &other)
-      : l(other.l), op(other.op), r(other.r) {}
-
-  ~Constraint() {
-    l.reset();
-    r.reset();
-  }
-
-  const Constraint &operator=(const Constraint &other) {
-    l.reset(other.l.get());
-    op = other.op;
-    r.reset(other.r.get());
-    return *this;
-  }
-
-  explicit Constraint(Constraint &&other)
-      : l(std::move(other.l)), op(other.op), r(std::move(other.r)) {}
-
-  const Constraint &operator=(Constraint &&other) {
-    l = std::move(other.l);
-    op = other.op;
-    r = std::move(other.r);
-    return *this;
-  }
-
-  bool operator==(const Constraint &other) const {
-    return (*l.get()) == (*other.l.get()) && op == other.op &&
-           (*r.get()) == (*other.r.get());
-  }
-
-  bool operator<(const Constraint &other) const {
-    if (l->operator<(*other.l)) {
-      return true;
-    } else if (l->operator==(*other.l) && op < other.op) {
-      return true;
-    } else if (l->operator==(*other.l) && op == other.op &&
-               r->operator<(*other.r)) {
-      return true;
-    } else {
-      return false;
-    }
-  }
+  // Derived classes *may* override the following standard
+  // behaviour of the visit methods for non-abstract expressions 
+  virtual void visitExpr(const Expr *e) { e->visit(*this); }
+  virtual void visitSymbol(const Symbol *s) { s->visit(*this); }
 };
-
-using ConstraintSet = std::set<Constraint>;
-
-// A 'Range' represents two constraints:
-//  (1) 'lower' LE 'name'
-//  (2) 'name'  LT 'upper'
-// These constraints can be considered solved since they specify
-// an explicit range for the variable 'name'.
-struct Range {
-  std::string n;
-  std::shared_ptr<Expr> low, up;
-
-  explicit Range(const std::string &name, const std::shared_ptr<Expr> &lower,
-                 const std::shared_ptr<Expr> &upper)
-      : n(name), low(lower), up(upper) {}
-
-  ConstraintSet asConstraints() const {
-    ConstraintSet res;
-    auto var = std::make_shared<Variable>(n);
-    res.emplace(low, LE, var);
-    res.emplace(var, LT, up);
-    return res;
-  }
-
-  explicit Range(const Range &other)
-      : n(other.n), low(other.low), up(other.up) {}
-
-  ~Range() {
-    low.reset();
-    up.reset();
-  }
-
-  const Range &operator=(const Range &other) {
-    n = other.n;
-    low.reset(other.low.get());
-    up.reset(other.up.get());
-    return *this;
-  }
-
-  explicit Range(Range &&other)
-      : n(other.n), low(std::move(other.low)), up(std::move(other.up)) {}
-
-  const Range &operator=(Range &&other) {
-    n = other.n;
-    low = std::move(other.low);
-    up = std::move(other.up);
-    return *this;
-  }
-
-  bool operator==(const Range &other) const {
-    return n == other.n && (*low.get()) == (*other.low.get()) &&
-           (*up.get()) == (*other.up.get());
-  }
-
-  bool operator<(const Range &other) const {
-    if (n < other.n) {
-      return true;
-    } else if (n == other.n && low->operator<(*other.low)) {
-      return true;
-    } else if (n == other.n && low->operator==(*other.low) &&
-               up->operator<(*other.up)) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-};
-
-using RangeSet = std::set<Range>;
-
-struct InferenceProblem {
-  RangeSet solved;
-  ConstraintSet constraints;
-
-  void addRange(const std::string &name, const std::shared_ptr<Expr> &lower,
-                const std::shared_ptr<Expr> &upper) {
-    const Range r(name, lower, upper);
-
-    // avoid duplicates:
-    if (solved.count(r) == 0)
-      solved.insert(std::move(r));
-  }
-
-  void addConstraint(const std::shared_ptr<Expr> &left, cmptype operation,
-                     const std::shared_ptr<Expr> &right) {
-    const Constraint c(left, operation, right);
-
-    // avoid duplicates:
-    for (const auto &r : solved) {
-      if (r.asConstraints().count(c))
-        return;
-    }
-
-    // avoid duplicates:
-    if (constraints.count(c) == 0)
-      constraints.insert(std::move(c));
-  }
-
-  void addConstraints(const std::shared_ptr<Expr> &lower,
-                      const std::shared_ptr<Expr> &middle,
-                      const std::shared_ptr<Expr> &upper) {
-    if (lower->isConstExpr() && middle->isVariable() && upper->isConstExpr()) {
-      const auto var = static_cast<Variable *>(middle.get());
-      addRange(var->n, lower, upper);
-
-      // avoid duplicates:
-      constraints.erase(Constraint(lower, LE, middle));
-      constraints.erase(Constraint(middle, LT, upper));
-    } else {
-      addConstraint(lower, LE, middle);
-      addConstraint(middle, LT, upper);
-    }
-  }
-
-  void clear() {
-    solved.clear();
-    constraints.clear();
-  }
-};
-
-std::ostream &operator<<(std::ostream &out, const InferenceProblem &p);
 
 } // namespace ranges
 } // namespace teckyl
 
-#endif // TECKYL_TC_RANGES_H
+#endif // TECKYL_TC_INFERENCE_EXPR_H
