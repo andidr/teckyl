@@ -1,0 +1,6 @@
+# CHECK-distr:      (((i*3)-(i*4))+((j*3)-(j*4)))
+# CHECK-sign-conv:  ((i+j)*(3+(-4)))
+# CHECK-norm:       (((3-4)*i)+((3-4)*j))
+# CHECK-norm-right: ((i*(3-4))+(j*(3-4)))
+
+(i+j)*(3-4)

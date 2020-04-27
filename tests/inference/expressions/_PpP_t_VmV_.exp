@@ -1,0 +1,6 @@
+# CHECK-distr:      ((($M*j)-($M*k))+(($N*j)-($N*k)))
+# CHECK-sign-conv:  (($M+$N)*(j+(-k)))
+# CHECK-norm:       ((((1*$M)+(1*$N))*j)+((((-1)*$M)+((-1)*$N))*k))
+# CHECK-norm-right: ((j*(($M*1)+($N*1)))+(k*(($M*(-1))+($N*(-1)))))
+
+($M+$N)*(j-k)

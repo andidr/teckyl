@@ -1,0 +1,28 @@
+Legend for file names
+---------------------
+
+This directory contains tests for the processing of arithmetic expressions.
+Arithmetic expressions occur in range constraints within Teckyl's range
+inference procedure.
+
+Each file in this directory that has an 'exp' suffix contains one arithmetic
+expression that serves as input for several tests. The tests are specified as
+comments (starting with a '#' character) in the first few lines of each 'exp'
+file. Each line of comment defines the desired output for one test; and the
+correctness of test output is supposed to be verified with the 'FileCheck'
+tool.
+
+The 'exp' suffix of file names is meant to stand for "expression". The main
+part of each 'exp' file's name describes the expression that the file contains,
+according to the following legend.
+
+C ~ constant
+P ~ parameter
+V ~ variable
+
+_ ~ parenthesis (both opening and closing)
+p ~ plus
+m ~ minus
+t ~ times
+n ~ negate
+

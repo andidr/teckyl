@@ -1,0 +1,6 @@
+# CHECK-distr:      ((($M*3)+($M*4))+(($N*3)+($N*4)))
+# CHECK-sign-conv:  (($M+$N)*(3+4))
+# CHECK-norm:       ((7*$M)+(7*$N))
+# CHECK-norm-right: (($M*7)+($N*7))
+
+($M+$N)*(3+4)

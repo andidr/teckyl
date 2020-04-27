@@ -1,0 +1,6 @@
+# CHECK-distr:      (((2*j)+(2*k))+((3*j)+(3*k)))
+# CHECK-sign-conv:  ((2+3)*(j+k)
+# CHECK-norm:       ((5*j)+(5*k))
+# CHECK-norm-right: ((j*5)+(k*5))
+
+(2+3)*(j+k)

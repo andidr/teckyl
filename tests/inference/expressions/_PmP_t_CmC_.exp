@@ -1,0 +1,6 @@
+# CHECK-distr:      ((($K*2)-($K*3))-(($L*2)-($L*3)))
+# CHECK-sign-conv:  (($K+(-$L))*(2+(-3)))
+# CHECK-norm:       (((2-3)*$K)+((3-2)*$L))
+# CHECK-norm-right: (($K*(2-3))+($L*(3-2)))
+
+($K-$L)*(2-3)

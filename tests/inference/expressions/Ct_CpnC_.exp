@@ -1,0 +1,6 @@
+# CHECK-distr:      ((2*3)+(2*(-4)))
+# CHECK-sign-conv:  (2*(3+(-4)))
+# CHECK-norm:       (6-8)
+# CHECK-norm-right: (6-8)
+
+2 * (3 + -4)

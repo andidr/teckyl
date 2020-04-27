@@ -22,6 +22,7 @@ export LLC="$PWD/llvm-project/llvm/bin/llc"
 export MLIR_OPT="$PWD/llvm-project/llvm/bin/mlir-opt"
 export MLIR_TRANSLATE="$PWD/llvm-project/llvm/bin/mlir-translate"
 export FILECHECK="$PWD/llvm-project/llvm/bin/FileCheck"
+export TRANSFORM="$PWD/bin/transform"
 
 [ -x "$TECKYL" ] || \
     die "Could not find teckyl binary." \
@@ -145,6 +146,73 @@ then
 		print_green "success"
 	    fi
 	done
+    
+    if [ -x "$TRANSFORM" ]
+    then
+	find "$BASE_DIR/tests/inference/expressions" -type f -name "*.exp" -print0 | sort | \
+	    while IFS= read -r -d '' SRC_FILE
+	    do
+		for TRAFO in "distr" "sign-conv" "norm"
+		do
+		    printf '%s' "Running expression transformation '$TRAFO' test on $SRC_FILE... "
+		    # Suppress error messages from the shell
+		    exec 2> /dev/null
+		    ("$TRANSFORM" -trafo="$TRAFO" -assoc=left "$SRC_FILE" | "$FILECHECK" -check-prefix=CHECK-"$TRAFO" "$SRC_FILE") > "$TMP_LOGFILE" 2>&1
+		    RETVAL=$?
+		    exec 2> /dev/tty
+
+		    if [ $RETVAL -ne 0 ]
+		    then
+			print_red "failed"
+			echo
+			cat "$TMP_LOGFILE" >&2
+			exit 1
+		    else
+			print_green "success"
+		    fi
+		done
+
+		printf '%s' "Running expression transformation 'norm-right' test on $SRC_FILE... "
+		# Suppress error messages from the shell
+		exec 2> /dev/null
+		("$TRANSFORM" -trafo=norm -assoc=right "$SRC_FILE" | "$FILECHECK" -check-prefix=CHECK-norm-right "$SRC_FILE") > "$TMP_LOGFILE" 2>&1
+		RETVAL=$?
+		exec 2> /dev/tty
+
+		if [ $RETVAL -ne 0 ]
+		then
+		    print_red "failed"
+		    echo
+		    cat "$TMP_LOGFILE" >&2
+		    exit 1
+		else
+		    print_green "success"
+		fi
+
+		printf '%s' "Running expression normalization right->left->right test on $SRC_FILE... "
+		# Suppress error messages from the shell
+		exec 2> /dev/null
+		("$TRANSFORM" -trafo=norm -assoc=right "$SRC_FILE" | \
+		     "$TRANSFORM" -trafo=norm -assoc=left -  | \
+		     "$TRANSFORM" -trafo=norm -assoc=right - | \
+		     "$FILECHECK" -check-prefix=CHECK-norm-right "$SRC_FILE") > "$TMP_LOGFILE" 2>&1
+		RETVAL=$?
+		exec 2> /dev/tty
+
+		if [ $RETVAL -ne 0 ]
+		then
+		    print_red "failed"
+		    echo
+		    cat "$TMP_LOGFILE" >&2
+		    exit 1
+		else
+		    print_green "success"
+		fi
+
+	    done
+    else
+	print_yellow "The transform tool hasn't been built. Skipping tests of expression transformations."
+    fi
 else
     print_yellow "FileCheck hasn't been built. Skipping inference tests."
 fi

@@ -1,0 +1,6 @@
+# CHECK-distr:      (((2*$L)-(2*$M))+((3*$L)-(3*$M)))
+# CHECK-sign-conv:  ((2+3)*($L+(-$M)))
+# CHECK-norm:       ((5*$L)+((-5)*$M))
+# CHECK-norm-right: (($L*5)+($M*(-5)))
+
+(2+3)*($L-$M)

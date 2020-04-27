@@ -1,0 +1,6 @@
+# CHECK-distr:      (($K*$M)-((-$L)*$M))
+# CHECK-sign-conv:  (($K+$L)*$M)
+# CHECK-norm:       (((1*$K)*$M)+((1*$L)*$M))
+# CHECK-norm-right: (($K*($M*1))+($L*($M*1)))
+
+($K - -$L) * $M
