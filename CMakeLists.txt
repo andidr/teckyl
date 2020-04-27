@@ -13,3 +13,4 @@ link_directories(${CMAKE_BINARY_DIR}/llvm-project/llvm/lib)
 
 add_subdirectory(llvm-project/llvm)
 add_subdirectory(teckyl)
+add_subdirectory(teckyl/tc/lang/inference)
