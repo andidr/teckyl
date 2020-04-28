@@ -152,7 +152,7 @@ then
 	find "$BASE_DIR/tests/inference/expressions" -type f -name "*.exp" -print0 | sort | \
 	    while IFS= read -r -d '' SRC_FILE
 	    do
-		for TRAFO in "distr" "sign-conv" "norm"
+		for TRAFO in "distr" "sign-conv" "norm" "var2param" "param2var"
 		do
 		    printf '%s' "Running expression transformation '$TRAFO' test on $SRC_FILE... "
 		    # Suppress error messages from the shell

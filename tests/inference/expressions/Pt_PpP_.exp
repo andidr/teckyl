@@ -2,5 +2,7 @@
 # CHECK-sign-conv:  ($K*($L+$M))
 # CHECK-norm:       (((1*$K)*$L)+((1*$K)*$M))
 # CHECK-norm-right: (($K*($L*1))+($K*($M*1)))
+# CHECK-var2param:  ($K*($L+$M))
+# CHECK-param2var:  (K*(L+M))
 
 $K*($L+$M)

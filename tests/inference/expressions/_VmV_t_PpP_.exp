@@ -2,5 +2,7 @@
 # CHECK-sign-conv:  ((i+(-j))*($M+$N))
 # CHECK-norm:       ((((1*$M)+(1*$N))*i)+((((-1)*$M)+((-1)*$N))*j))
 # CHECK-norm-right: ((i*(($M*1)+($N*1)))+(j*(($M*(-1))+($N*(-1)))))
+# CHECK-var2param:  (($i-$j)*($M+$N))
+# CHECK-param2var:  ((i-j)*(M+N))
 
 (i-j)*($M+$N)

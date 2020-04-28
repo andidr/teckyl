@@ -2,5 +2,7 @@
 # CHECK-sign-conv:  ((i+(-j))*(2+(-3)))
 # CHECK-norm:       (((2-3)*i)+((3-2)*j))
 # CHECK-norm-right: ((i*(2-3))+(j*(3-2)))
+# CHECK-var2param:  (($i-$j)*(2-3))
+# CHECK-param2var:  ((i-j)*(2-3))
 
 (i-j)*(2-3)

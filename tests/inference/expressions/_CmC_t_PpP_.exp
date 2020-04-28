@@ -2,5 +2,7 @@
 # CHECK-sign-conv:  ((2+(-3))*($M+$N))
 # CHECK-norm:       (((2-3)*$M)+((2-3)*$N))
 # CHECK-norm-right: (($M*(2-3))+($N*(2-3)))
+# CHECK-var2param:  ((2-3)*($M+$N))
+# CHECK-param2var:  ((2-3)*(M+N))
 
 (2-3)*($M+$N)

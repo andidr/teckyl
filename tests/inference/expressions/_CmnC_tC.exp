@@ -2,5 +2,7 @@
 # CHECK-sign-conv:  ((2+3)*4)
 # CHECK-norm:       20
 # CHECK-norm-right: 20
+# CHECK-var2param:  ((2-(-3))*4)
+# CHECK-param2var:  ((2-(-3))*4)
 
 (2 - -3) * 4
