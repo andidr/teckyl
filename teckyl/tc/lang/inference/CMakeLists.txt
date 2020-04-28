@@ -8,6 +8,7 @@ add_llvm_executable(transform
   ../lexer.cc # Required due to a dependency on 'lang::kindToString'.
   analysis.h
   transformation.h
+  transformation.cpp
   expression_parser.h
   ranges.h    # Header file not required.
   ranges.cpp  # Source file not required.

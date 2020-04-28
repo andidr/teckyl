@@ -5,6 +5,7 @@
 #include "teckyl/tc/lang/inference/expr.h"
 
 #include <algorithm>
+#include <functional>
 #include <llvm/Support/ErrorHandling.h>
 #include <memory>
 #include <string>
@@ -52,6 +53,42 @@ struct StackBasedVisitor : public StackBasedTrafo, ExprVisitor {
       llvm_unreachable("Stack has been mis-managed");
     }
     return stack.pop();
+  }
+
+protected:
+  // Identity visitors:
+
+  void visitBinOp(const BinOp *b) override {
+    const auto op = b->op;
+    const auto left = b->l;
+    const auto right = b->r;
+
+    left->visit(*this);
+    const auto left_ = stack.pop();
+
+    right->visit(*this);
+    const auto right_ = stack.pop();
+
+    auto result = std::make_shared<BinOp>(op, left_, right_);
+    stack.push(result);
+  }
+
+  void visitNeg(const Neg *n) override {
+    n->expr->visit(*this);
+    const auto result = std::make_shared<Neg>(stack.pop());
+    stack.push(result);
+  }
+
+  void visitConstant(const Constant *c) override {
+    stack.push(std::make_shared<Constant>(*c));
+  }
+
+  void visitParameter(const Parameter *p) override {
+    stack.push(std::make_shared<Parameter>(*p));
+  }
+
+  void visitVariable(const Variable *v) override {
+    stack.push(std::make_shared<Variable>(*v));
   }
 };
 
@@ -135,24 +172,6 @@ private:
 
     auto result = std::make_shared<BinOp>(TIMES, left_, right_);
     stack.push(result);
-  }
-
-  void visitNeg(const Neg *n) final {
-    n->expr->visit(*this);
-    const auto result = std::make_shared<Neg>(stack.pop());
-    stack.push(result);
-  }
-
-  void visitConstant(const Constant *c) final {
-    stack.push(std::make_shared<Constant>(*c));
-  }
-
-  void visitParameter(const Parameter *p) final {
-    stack.push(std::make_shared<Parameter>(*p));
-  }
-
-  void visitVariable(const Variable *v) final {
-    stack.push(std::make_shared<Variable>(*v));
   }
 };
 
@@ -309,6 +328,48 @@ private:
   }
 };
 
+struct Substitution : public StackBasedVisitor {
+  using Assignment =
+      std::function<ExprRef(const std::string &, const ExprRef &)>;
+
+  static const Assignment identity;
+
+  Substitution(const Assignment &variablesAssignment = identity,
+               const Assignment &parametersAssignment = identity)
+      : varsSubst(variablesAssignment), paramsSubst(parametersAssignment) {}
+
+private:
+  Assignment varsSubst;
+  Assignment paramsSubst;
+
+  void visitVariable(const Variable *v) {
+    stack.push(varsSubst(v->n, std::make_shared<Variable>(*v)));
+  }
+
+  void visitParameter(const Parameter *p) {
+    stack.push(paramsSubst(p->n, std::make_shared<Parameter>(*p)));
+  }
+};
+
+struct SingleSubstitution : public Substitution {
+  enum SubstitutionTarget { Variable, Parameter };
+
+  SingleSubstitution(const std::string &targetName,
+                     const ExprRef &exprToSubstitute,
+                     SubstitutionTarget targetKind = Variable)
+      : Substitution(targetKind == Variable ? nameSubstitution : identity,
+                     targetKind == Parameter ? nameSubstitution : identity),
+        name(targetName), expr(exprToSubstitute) {}
+
+private:
+  const Assignment nameSubstitution = [this](const std::string &name,
+                                             const ExprRef &self) {
+    return (name == this->name) ? this->expr : self;
+  };
+
+  std::string name;
+  const ExprRef expr;
+};
 } // namespace ranges
 } // namespace teckyl
 
