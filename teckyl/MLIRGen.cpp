@@ -6,10 +6,10 @@
 #include "teckyl/tc/lang/sema.h"
 #include <llvm/ADT/ScopedHashTable.h>
 #include <llvm/Support/ErrorHandling.h>
-#include <mlir/Dialect/AffineOps/AffineOps.h>
+#include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Linalg/EDSC/Builders.h>
 #include <mlir/Dialect/Linalg/EDSC/Intrinsics.h>
-#include <mlir/Dialect/LoopOps/LoopOps.h>
+#include <mlir/Dialect/SCF/SCF.h>
 #include <mlir/Dialect/StandardOps/IR/Ops.h>
 #include <mlir/IR/AffineExpr.h>
 #include <mlir/IR/Builders.h>
@@ -736,16 +736,16 @@ private:
   //
   // If `innermost` is non-NULL, a reference to the innermost loop is
   // stored in `*innermost`.
-  mlir::loop::ForOp buildLoopNest(const std::vector<std::string> &iterators,
+  mlir::scf::ForOp buildLoopNest(const std::vector<std::string> &iterators,
                                   const IteratorBoundsMap &mlirIteratorBounds,
                                   const mlir::Location &location,
-                                  mlir::loop::ForOp *innermost = nullptr) {
-    mlir::loop::ForOp outermost;
+                                  mlir::scf::ForOp *innermost = nullptr) {
+    mlir::scf::ForOp outermost;
     mlir::Value step = builder.create<mlir::ConstantIndexOp>(location, 1);
 
     // Build loop nest for all involved iterators
     for (const auto &it : iterators) {
-      mlir::loop::ForOp loop = builder.create<mlir::loop::ForOp>(
+      mlir::scf::ForOp loop = builder.create<mlir::scf::ForOp>(
           location, mlirIteratorBounds.at(it).first,
           mlirIteratorBounds.at(it).second, step);
 
@@ -830,7 +830,7 @@ private:
     mlir::edsc::ScopedContext sc(builder, location);
 
     auto regionBuilder = [&](mlir::ArrayRef<mlir::BlockArgument> arg) {
-      MLIRValueExprGen exprGen(mlir::edsc::ScopedContext::getBuilder(), symTab,
+      MLIRValueExprGen exprGen(mlir::edsc::ScopedContext::getBuilderRef(), symTab,
                                filename);
       mlir::Value cstVal;
 
@@ -846,8 +846,7 @@ private:
       mlir::edsc::intrinsics::linalg_yield{cstVal};
     };
 
-    mlir::edsc::ValueHandle O(output);
-    mlir::edsc::StructuredIndexed SO(O);
+    mlir::edsc::StructuredIndexed SO(output);
 
     // Build one-to-one mapping for dimensions
     std::vector<mlir::AffineExpr> affIndexes;
@@ -890,7 +889,7 @@ private:
 
     mlir::Block *currBlock = builder.getInsertionBlock();
 
-    mlir::loop::ForOp innermost;
+    mlir::scf::ForOp innermost;
     buildLoopNest(iteratorsSeq, mlirItBounds, location, &innermost);
 
     exprGen.getBuilder().setInsertionPointToStart(innermost.getBody());
@@ -984,8 +983,7 @@ private:
       std::vector<mlir::AffineExpr> aff = affGen.buildAffineExpressions(a);
 
       mlir::Value tensorValue = symTab.lookup(a.name().name());
-      mlir::edsc::ValueHandle tensorHandle(tensorValue);
-      mlir::edsc::StructuredIndexed tensorBase(tensorHandle);
+      mlir::edsc::StructuredIndexed tensorBase(tensorValue);
       mlir::edsc::StructuredIndexed tensorIndexed = tensorBase(aff);
 
       argIndexes.insert({a.id(), inputs.size()});
@@ -1031,7 +1029,7 @@ private:
       for (auto it : argIndexes)
         valMap.insert({it.first, blockArgs[it.second]});
 
-      MLIRMappedValueExprGen gen(mlir::edsc::ScopedContext::getBuilder(),
+      MLIRMappedValueExprGen gen(mlir::edsc::ScopedContext::getBuilderRef(),
                                  valMap, symTab, filename);
       mlir::Value rhsVal = gen.buildExpr(c.rhs());
 
