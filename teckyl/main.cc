@@ -7,9 +7,12 @@
 #include "teckyl/tc/lang/sema.h"
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/ErrorHandling.h>
-#include <mlir/Analysis/Verifier.h>
+#include <mlir/IR/Verifier.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Module.h>
+#include <mlir/Dialect/StandardOps/EDSC/Intrinsics.h>
+#include <mlir/Dialect/Linalg/IR/LinalgOps.h>
+#include "mlir/Dialect/SCF/SCF.h"
 
 #include "teckyl/MLIRGen.h"
 
@@ -65,6 +68,9 @@ void dumpAST(const std::map<std::string, lang::Def> &tcs) {
 //
 // Returns 0 on success or 1 in case of an error.
 void dumpMLIR(const std::map<std::string, lang::Def> &tcs) {
+  mlir::registerDialect<mlir::StandardOpsDialect>();
+  mlir::registerDialect<mlir::linalg::LinalgDialect>();
+  mlir::registerDialect<mlir::scf::SCFDialect>();
   mlir::MLIRContext context;
   mlir::ModuleOp module;
   mlir::OpBuilder builder(&context);
