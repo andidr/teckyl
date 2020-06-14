@@ -1,10 +1,10 @@
 # Teckyl: An MLIR frontend for Tensor Operations
 
-Teckyl is released under the the Apache License v2.0 with LLVM
-Exceptions. For details see the file LICENSE.
+Teckyl is released under the Apache License v2.0 with LLVM
+Exceptions. For details, see the file LICENSE.
 
 This project is based on llvm-project. See the llvm-project
-subdirectory for details about the licsensing.
+subdirectory for details about the licensing.
 
 Teckyl also uses code from the Tensor Comprehensions repository at
 https://github.com/facebookresearch/TensorComprehensions, licensed
