@@ -422,6 +422,7 @@ struct Sema {
       if (!r.typeIsInferred()) {
         annotated_output_types.emplace(r.ident().name(), r.tensorType());
         addRangeParameters(r.tensorType());
+	checkParam(r);
       }
     }
 
@@ -437,6 +438,7 @@ struct Sema {
     }
     for (auto r : func.returns()) {
       nonTemporaries.insert(r.ident().name());
+      lookup(env, r. ident(), false);
     }
 
     auto statements_ =
