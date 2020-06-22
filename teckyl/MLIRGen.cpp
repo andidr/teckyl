@@ -1150,7 +1150,8 @@ private:
     // Conditions 2 and 3 might be relaxed in the future in cases,
     // where it is possible to create subviews which restore the
     // conditions.
-    if (options.force_std_loops || hasNonAffineIndexing(c.rhs(), iteratorSet) ||
+    if (options.body_op == MLIRGenOptions::BodyOp::ScfFor ||
+        hasNonAffineIndexing(c.rhs(), iteratorSet) ||
         !allIteratorsIndexTensorDimension(iteratorSetReduction, c.rhs()) ||
         !directIteratorDomainsMatchTensorDimensions(c, paramSpecs)) {
       buildLoopReductionCore(c, outTensorVal, iteratorsSeq, langItBounds,

@@ -37,7 +37,9 @@ private:
 
 class MLIRGenOptions {
 public:
-  bool force_std_loops = false;
+  enum class BodyOp { LinalgGeneric, ScfFor };
+
+  BodyOp body_op;
 };
 
 mlir::FuncOp

@@ -37,16 +37,16 @@ for MODE in good bad
 do
     TEST_DIR="$BASE_DIR/tests/inputs/$MODE"
 
-    for EXTRA_ARGS in "" "-force-std-loops"
+    for BODY_OP in "linalg.generic" "scf.for"
     do
 	find "$TEST_DIR" -type f -name "*.tc" -print0 | sort | \
 	    while IFS= read -r -d '' SRC_FILE
 	    do
-		printf '%s' "Running teckyl $EXTRA_ARGS on $SRC_FILE... "
+		printf '%s' "Running teckyl [$BODY_OP] on $SRC_FILE... "
 
 		# Suppress error messages from the shell
 		exec 2> /dev/null
-		"$TECKYL" -emit=mlir $EXTRA_ARGS "$SRC_FILE" > "$TMP_LOGFILE" 2>&1
+		"$TECKYL" -emit=mlir -body-op=$BODY_OP "$SRC_FILE" > "$TMP_LOGFILE" 2>&1
 		RETVAL=$?
 		exec 2> /dev/tty
 

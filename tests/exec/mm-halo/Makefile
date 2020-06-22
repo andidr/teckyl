@@ -3,20 +3,21 @@ CFLAGS=$(TFLAGS)
 
 BUILDDIR ?= .
 
-all: $(BUILDDIR)/mm-halo-linalg $(BUILDDIR)/mm-halo-stdloops
+VERSIONS=$(BUILDDIR)/mm-halo-linalg.generic $(BUILDDIR)/mm-halo-scf.for
+
+all: $(VERSIONS)
 
 $(BUILDDIR)/mm-halo-%: main.c $(BUILDDIR)/mm-halo-%.o
 	$(CC) -std=c99 -o $@ $^ $(CFLAGS)
 
-$(BUILDDIR)/mm-halo-linalg.o: mm-halo.tc
-	../../../teckyl-genobject -o $@ $^ $(TFLAGS)
-
-$(BUILDDIR)/mm-halo-stdloops.o: mm-halo.tc
-	../../../teckyl-genobject -o $@ $^ $(TFLAGS) --force-std-loops
+$(BUILDDIR)/mm-halo-%.o: mm-halo.tc
+	../../../teckyl-genobject -o $@ $^ $(TFLAGS) --body-op=$*
 
 clean:
-	rm -f $(BUILDDIR)/*.o $(BUILDDIR)/mm-halo-linalg $(BUILDDIR)/mm-halo-stdloops
+	rm -f $(BUILDDIR)/*.o $(VERSIONS)
 
 run:
-	$(BUILDDIR)/mm-halo-linalg
-	$(BUILDDIR)/mm-halo-stdloops
+	for VERSION in $(VERSIONS) ; \
+	do \
+		$$VERSION || exit 1 ; \
+	done

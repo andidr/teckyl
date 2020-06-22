@@ -29,11 +29,14 @@ static llvm::cl::opt<enum Action> emitAction(
     llvm::cl::values(clEnumValN(DumpInference, "inference",
                                 "output inference results")));
 
-static llvm::cl::opt<bool> forceStdLoops(
-    "force-std-loops",
-    llvm::cl::desc(
-        "Force use of standard loops when generating code for comprehensions"),
-    llvm::cl::init(false));
+static llvm::cl::opt<teckyl::MLIRGenOptions::BodyOp> bodyOp(
+    "body-op",
+    llvm::cl::desc("Select the operation used for the body of computations"),
+    llvm::cl::values(clEnumValN(teckyl::MLIRGenOptions::BodyOp::LinalgGeneric,
+                                "linalg.generic", "Linalg.generic")),
+    llvm::cl::values(clEnumValN(teckyl::MLIRGenOptions::BodyOp::ScfFor,
+                                "scf.for",
+                                "Sets of nested instances of Scf.for")));
 
 // Reads an entire file into a string
 std::string readFile(const std::string &filename) {
@@ -92,7 +95,7 @@ void dumpMLIR(const std::map<std::string, lang::Def> &tcs) {
   teckyl::MLIRGenOptions options;
   lang::Sema sema;
 
-  options.force_std_loops = forceStdLoops;
+  options.body_op = bodyOp;
 
   module = mlir::ModuleOp::create(builder.getUnknownLoc());
 

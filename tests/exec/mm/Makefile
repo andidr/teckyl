@@ -3,20 +3,21 @@ CFLAGS=$(TFLAGS)
 
 BUILDDIR ?= .
 
-all: $(BUILDDIR)/mm-linalg $(BUILDDIR)/mm-stdloops
+VERSIONS=$(BUILDDIR)/mm-linalg.generic $(BUILDDIR)/mm-scf.for
+
+all: $(VERSIONS)
 
 $(BUILDDIR)/mm-%: main.c $(BUILDDIR)/mm-%.o
 	$(CC) -std=c99 -o $@ $^ $(CFLAGS)
 
-$(BUILDDIR)/mm-linalg.o: mm.tc
-	../../../teckyl-genobject -o $@ $^ $(TFLAGS)
-
-$(BUILDDIR)/mm-stdloops.o: mm.tc
-	../../../teckyl-genobject -o $@ $^ $(TFLAGS) --force-std-loops
+$(BUILDDIR)/mm-%.o: mm.tc
+	../../../teckyl-genobject -o $@ $^ $(TFLAGS) --body-op=$*
 
 clean:
-	rm -f $(BUILDDIR)/*.o $(BUILDDIR)/mm-linalg $(BUILDDIR)/mm-stdloops
+	rm -f $(BUILDDIR)/*.o $(VERSIONS)
 
 run:
-	$(BUILDDIR)/mm-linalg
-	$(BUILDDIR)/mm-stdloops
+	for VERSION in $(VERSIONS) ; \
+	do \
+		$$VERSION || exit 1 ; \
+	done

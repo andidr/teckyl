@@ -11,7 +11,9 @@ die_usage() {
     echo "the Teckyl frontend" >&2
     echo >&2
     echo "Options:" >&2
-    echo "  --force-std-loops          Force use of standard loops during MLIR generation" >&2
+    echo "  --body-op=OP               Use OP when generating code for comprehensions" >&2
+    echo "                             OP may be linalg.generic or scf.for"
+    echo "                             [default: scf.for]" >&2
     echo "  -g                         Generate debug symbols" >&2
     echo "  -m MODE, --mode=MODE       Set the output mode to MODE" >&2
     echo "                             asm: generate assembly code" >&2
@@ -49,6 +51,7 @@ INFILE=""
 OUTFILE=""
 DEBUGSYMS=""
 MODE="object"
+BODY_OP="scf.for"
 
 LLC=${LLC-llc}
 MLIR_OPT=${MLIR_OPT-mlir-opt}
@@ -65,8 +68,8 @@ TMPDIR=${TMPDIR-/tmp}
 while [ $# -gt 0 ]
 do
     case "$1" in
-	--force-std-loops)
-	    TECKYL_OPTS+=("--force-std-loops")
+	--body-op=*)
+	    BODY_OP="${1#--body-op=}"
 	    ;;
 	-g)
 	    DEBUGSYMS="-g"
@@ -106,6 +109,8 @@ do
 
     shift
 done
+
+TECKYL_OPTS+=("--body-op=$BODY_OP")
 
 case "$MODE" in
     asm|llvmir|object)
