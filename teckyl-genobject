@@ -146,7 +146,7 @@ trap "{ rm -f \"$TMPFILE_IR\" \"$TMPFILE_ASM\"  \"$TMPFILE_OBJ\" ; }" EXIT
 set -Eeuo pipefail
 
 "$TECKYL" -emit=mlir "$INFILE" "${TECKYL_OPTS[@]}" 2>&1 | \
-    "$MLIR_OPT" --convert-linalg-to-loops --convert-loop-to-std -convert-std-to-llvm | \
+    "$MLIR_OPT" --convert-linalg-to-loops --convert-scf-to-std -convert-std-to-llvm | \
     "$MLIR_TRANSLATE" --mlir-to-llvmir -o "$TMPFILE_IR"
 
 [ "$MODE" = "llvmir" ] && \

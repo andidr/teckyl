@@ -829,9 +829,9 @@ private:
     std::vector<mlir::edsc::StructuredIndexed> outputs{output};
     mlir::edsc::ScopedContext sc(builder, location);
 
-    auto regionBuilder = [&](mlir::ArrayRef<mlir::BlockArgument> arg) {
-      MLIRValueExprGen exprGen(mlir::edsc::ScopedContext::getBuilderRef(), symTab,
-                               filename);
+    auto regionBuilder = [&](mlir::ValueRange args) {
+      MLIRValueExprGen exprGen(mlir::edsc::ScopedContext::getBuilderRef(),
+                               symTab, filename);
       mlir::Value cstVal;
 
       switch (value) {
@@ -1021,7 +1021,7 @@ private:
     // Generate MLIR expressions for the rhs tensor expression of the
     // comprehension, but use mappings to block arguments for all
     // access expressions.
-    auto regionBuilder = [&](mlir::ArrayRef<mlir::BlockArgument> blockArgs) {
+    auto regionBuilder = [&](mlir::ValueRange blockArgs) {
       // Prepare mapping from lang::Tree IDs to block Arguments representing the
       // tensor reads
       std::map<lang::TreeId, mlir::Value> valMap;
