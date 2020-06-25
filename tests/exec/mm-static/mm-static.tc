@@ -1,0 +1,4 @@
+def mm(float(512,1024) A, float(1024,256) B) -> (float(512,256) C)
+{
+  C(i,j) +=! A(i,k) * B(k,j) where i in 0:512, k in 0:1024, j in 0:256
+}
