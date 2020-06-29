@@ -38,6 +38,12 @@ static llvm::cl::opt<teckyl::MLIRGenOptions::BodyOp> bodyOp(
                                 "scf.for",
                                 "Sets of nested instances of Scf.for")));
 
+static llvm::cl::opt<bool> specializeLinalgOps(
+    "specialize-linalg-ops",
+    llvm::cl::desc("Use structured Ops from the linalg dialect for common "
+                   "operation (e.g., matrix multiplications)"),
+    llvm::cl::init(false));
+
 // Reads an entire file into a string
 std::string readFile(const std::string &filename) {
   std::ifstream ifs(filename);
@@ -96,6 +102,14 @@ void dumpMLIR(const std::map<std::string, lang::Def> &tcs) {
   lang::Sema sema;
 
   options.body_op = bodyOp;
+  options.specialize_linalg_ops = specializeLinalgOps;
+
+  if (options.specialize_linalg_ops &&
+      options.body_op != teckyl::MLIRGenOptions::BodyOp::LinalgGeneric) {
+    THROW_OR_ASSERT(
+        teckyl::Exception("--specialize-linalg-ops can only be used in "
+                          "conjunction with --body-op=linalg.generic"));
+  }
 
   module = mlir::ModuleOp::create(builder.getUnknownLoc());
 

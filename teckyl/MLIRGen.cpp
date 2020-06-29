@@ -2,6 +2,7 @@
 #include "teckyl/MLIRAffineExprGen.h"
 #include "teckyl/lang_affine.h"
 #include "teckyl/lang_extras.h"
+#include "teckyl/patterns.h"
 
 #include "teckyl/tc/lang/sema.h"
 #include <llvm/ADT/ScopedHashTable.h>
@@ -737,9 +738,9 @@ private:
   // If `innermost` is non-NULL, a reference to the innermost loop is
   // stored in `*innermost`.
   mlir::scf::ForOp buildLoopNest(const std::vector<std::string> &iterators,
-                                  const IteratorBoundsMap &mlirIteratorBounds,
-                                  const mlir::Location &location,
-                                  mlir::scf::ForOp *innermost = nullptr) {
+                                 const IteratorBoundsMap &mlirIteratorBounds,
+                                 const mlir::Location &location,
+                                 mlir::scf::ForOp *innermost = nullptr) {
     mlir::scf::ForOp outermost;
     mlir::Value step = builder.create<mlir::ConstantIndexOp>(location, 1);
 
@@ -940,6 +941,55 @@ private:
     builder.setInsertionPointToEnd(currBlock);
   }
 
+  // Creates an instance of OP_T from c if CHECK_FUNC returns
+  // true. The order of the input operands to OP_T is the canonical
+  // order provided by CHECK_FUNC and the order of output operands is
+  // the same as in outputs.
+  template <typename OP_T, int num_inputs,
+            bool (*CHECK_FUNC)(const lang::Comprehension &c,
+                               size_t (*canonical_order)[num_inputs])>
+  bool tryBuildSpecializedLinalgOp(
+      const lang::Comprehension &c,
+      llvm::ArrayRef<mlir::edsc::StructuredIndexed> inputs,
+      llvm::ArrayRef<mlir::edsc::StructuredIndexed> outputs) {
+
+    llvm::SmallVector<mlir::Value, 4> rearranged;
+    size_t canon[num_inputs];
+
+    // Check if c is of correct type and determine canonical order for
+    // input operands
+    if (CHECK_FUNC(c, &canon)) {
+      for (int i = 0; i < num_inputs; i++)
+        rearranged.push_back(inputs[canon[i]]);
+
+      for (mlir::edsc::StructuredIndexed o : outputs)
+        rearranged.push_back(o);
+
+      mlir::ValueRange operands(
+          mlir::ArrayRef<mlir::Value>{rearranged.begin(), rearranged.end()});
+
+      builder.create<OP_T>(loc(c.range()), mlir::TypeRange{}, operands);
+
+      return true;
+    }
+
+    return false;
+  }
+
+  // Tries to build a linalg structured operations from c and the
+  // provided inputs / outputs.
+  bool tryBuildSpecializedLinalgOp(
+      const lang::Comprehension &c,
+      llvm::ArrayRef<mlir::edsc::StructuredIndexed> inputs,
+      llvm::ArrayRef<mlir::edsc::StructuredIndexed> outputs) {
+    return tryBuildSpecializedLinalgOp<mlir::linalg::MatmulOp, 2,
+                                       pattern::isMatmulComprehension>(
+               c, inputs, outputs) ||
+           tryBuildSpecializedLinalgOp<mlir::linalg::MatvecOp, 2,
+                                       pattern::isMatvecComprehension>(
+               c, inputs, outputs);
+  }
+
   // Builds the core of a comprehension (e.g., just the actual
   // compitation without the initialization broadcasting the neutral
   // element for default-initialized reductions) with affine
@@ -953,6 +1003,7 @@ private:
     std::vector<lang::Access> tensorAccesses =
         collectTensorAccessesSeq(c.rhs());
     std::vector<mlir::edsc::StructuredIndexed> inputs;
+    std::vector<mlir::Value> inputTensorValues;
     std::set<std::string> accessedTensors;
     std::map<lang::TreeId, unsigned int> argIndexes;
 
@@ -983,6 +1034,7 @@ private:
       std::vector<mlir::AffineExpr> aff = affGen.buildAffineExpressions(a);
 
       mlir::Value tensorValue = symTab.lookup(a.name().name());
+      inputTensorValues.push_back(tensorValue);
       mlir::edsc::StructuredIndexed tensorBase(tensorValue);
       mlir::edsc::StructuredIndexed tensorIndexed = tensorBase(aff);
 
@@ -1074,8 +1126,17 @@ private:
       mlir::edsc::intrinsics::linalg_yield{res};
     };
 
-    mlir::edsc::makeGenericLinalgOp(iteratorTypes, inputs, outputs,
-                                    regionBuilder);
+    bool buildGeneric = true;
+
+    if (options.specialize_linalg_ops) {
+      if (tryBuildSpecializedLinalgOp(c, inputs, outputs))
+        buildGeneric = false;
+    }
+
+    if (buildGeneric) {
+      mlir::edsc::makeGenericLinalgOp(iteratorTypes, inputs, outputs,
+                                      regionBuilder);
+    }
   }
 
   // Builds the MLIR representation of a single comprehension

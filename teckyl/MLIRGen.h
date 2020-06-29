@@ -40,6 +40,7 @@ public:
   enum class BodyOp { LinalgGeneric, ScfFor };
 
   BodyOp body_op;
+  bool specialize_linalg_ops;
 };
 
 mlir::FuncOp
