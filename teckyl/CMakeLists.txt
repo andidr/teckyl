@@ -26,6 +26,7 @@ add_llvm_executable(teckyl
   MLIRGen.cpp
   MLIRGen.h
   main.cc
+  patterns.h
   PrefixedOStream.h)
 
 target_compile_options(teckyl PRIVATE -fexceptions -fno-rtti)
