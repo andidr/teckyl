@@ -827,38 +827,18 @@ private:
                                                sizes, strides);
     }
 
-    std::vector<mlir::edsc::StructuredIndexed> outputs{output};
-    mlir::edsc::ScopedContext sc(builder, location);
+    mlir::Value cstVal;
 
-    auto regionBuilder = [&](mlir::ValueRange args) {
-      MLIRValueExprGen exprGen(mlir::edsc::ScopedContext::getBuilderRef(),
-                               symTab, filename);
-      mlir::Value cstVal;
-
-      switch (value) {
-      case NeutralElement::Zero:
-        cstVal = exprGen.buildConstant("0", elementType, location);
-        break;
-      case NeutralElement::One:
-        cstVal = exprGen.buildConstant("1", elementType, location);
-        break;
-      }
-
-      mlir::edsc::intrinsics::linalg_yield{cstVal};
-    };
-
-    mlir::edsc::StructuredIndexed SO(output);
-
-    // Build one-to-one mapping for dimensions
-    std::vector<mlir::AffineExpr> affIndexes;
-
-    for (size_t dimIdx = 0; dimIdx < rank; dimIdx++) {
-      mlir::AffineExpr e = mlir::getAffineDimExpr(dimIdx, builder.getContext());
-      affIndexes.push_back(e);
+    switch (value) {
+    case NeutralElement::Zero:
+      cstVal = exprGen.buildConstant("0", elementType, location);
+      break;
+    case NeutralElement::One:
+      cstVal = exprGen.buildConstant("1", elementType, location);
+      break;
     }
 
-    mlir::edsc::makeGenericLinalgOp(iteratorTypes, {}, SO(affIndexes),
-                                    regionBuilder);
+    builder.create<mlir::linalg::FillOp>(location, output, cstVal);
   }
 
   // Collects all access expressions that are descendants of t in an
