@@ -254,6 +254,29 @@ static bool convertValue(mlir::OpBuilder &builder, mlir::Value &v, mlir::Type t,
   return false;
 }
 
+// Checks if a value of type `t` can be converted to `targetType`
+// losslessly. Returns true if this is possible, otherwise false.
+static bool typeLosslesslyConvertible(mlir::Type t, mlir::Type targetType) {
+  if (t == targetType)
+    return true;
+
+  if (isMLIRFloatType(t) && isMLIRFloatType(targetType)) {
+    if (getMLIRFloatTypeBits(t) <= getMLIRFloatTypeBits(targetType))
+      return true;
+  } else if (isMLIRIntType(t) && isMLIRIntType(targetType)) {
+    if (getMLIRIntTypeBits(t) <= getMLIRIntTypeBits(targetType))
+      return true;
+  } else if (isMLIRIntType(t) && isMLIRFloatType(targetType)) {
+    unsigned int intBits = getMLIRIntTypeBits(t);
+    unsigned int mantissaBits = getMLIRFloatTypeMantissaBits(targetType);
+
+    if (intBits <= mantissaBits)
+      return true;
+  }
+
+  return false;
+}
+
 // Align types of two values: If a and b are of different types, the
 // function attempts to convert the type with less precision to the
 // type with higher precision. Only lossless conversions are
@@ -270,31 +293,12 @@ static bool alignTypes(mlir::OpBuilder &builder, mlir::Value &a, mlir::Value &b,
   if (tA == tB)
     return true;
 
-  if (isMLIRFloatType(tA) && isMLIRFloatType(tB)) {
-    if (getMLIRFloatTypeBits(tA) < getMLIRFloatTypeBits(tB))
-      return convertValue(builder, a, tB, location);
-    else
-      return convertValue(builder, b, tA, location);
-  } else if (isMLIRIntType(tA) && isMLIRIntType(tB)) {
-    if (getMLIRIntTypeBits(tA) < getMLIRIntTypeBits(tB))
-      return convertValue(builder, a, tB, location);
-    else
-      return convertValue(builder, b, tA, location);
-  } else if (isMLIRIntType(tA) && isMLIRFloatType(tB)) {
-    unsigned int intBits = getMLIRIntTypeBits(tA);
-    unsigned int mantissaBits = getMLIRFloatTypeMantissaBits(tB);
-
-    if (intBits <= mantissaBits)
-      return convertValue(builder, a, tB, location);
-  } else if (isMLIRFloatType(tA) && isMLIRIntType(tB)) {
-    unsigned int intBits = getMLIRIntTypeBits(tB);
-    unsigned int mantissaBits = getMLIRFloatTypeMantissaBits(tA);
-
-    if (intBits <= mantissaBits)
-      return convertValue(builder, b, tA, location);
-  }
-
-  return false;
+  if (typeLosslesslyConvertible(tA, tB))
+    return convertValue(builder, a, tB, location);
+  else if (typeLosslesslyConvertible(tB, tA))
+    return convertValue(builder, b, tA, location);
+  else
+    return false;
 }
 
 // Builds a binary operation from `lhs` and `rhs` associated to the
