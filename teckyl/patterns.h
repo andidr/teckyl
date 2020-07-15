@@ -6,6 +6,20 @@
 namespace teckyl {
 namespace pattern {
 
+// Checks if a comprehension is an assignment of a constant to the
+// elements of a tensor, i.e., if it has the pattern
+//
+//  C(i) = constant
+//
+// e.g.,
+//
+//  C(i) = 0
+//
+// Returns true if the pattern matches, otherwise false.
+static inline bool isConstantInitialization(const lang::Comprehension &c) {
+  return (c.assignment()->kind() == '=' && c.rhs()->kind() == lang::TK_CONST);
+}
+
 // Checks if a comprehension is a matrix-vector product, i.e., if it
 // has the pattern
 //

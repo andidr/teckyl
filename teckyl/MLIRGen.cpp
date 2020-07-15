@@ -960,12 +960,45 @@ private:
     return false;
   }
 
+  // Builds a linalg.fill operation initializing the memref value
+  // referred to by outTensor with the constant given in lcst.
+  //
+  // Fails if the type of the constant cannot be converted losslessly
+  // to the element type of the target tensor.
+  void buildFillOp(lang::Const lcst, mlir::Value outTensor) {
+    MLIRValueExprGen exprGen(builder, symTab, filename);
+
+    if (!typeLosslesslyConvertible(getScalarType(lcst.type()->kind()),
+                                   getElementType(outTensor))) {
+      std::stringstream ss;
+
+      ss << "The operand type for assignment cannot be converted losslessly "
+            "to the target tensor's element type: Expected "
+         << getTypeAsString(getElementType(outTensor)) << ", but got "
+         << getTypeAsString(getScalarType(lcst.type()->kind())) << ".";
+
+      mlirgen::SourceException err(loc(lcst.range()), ss.str());
+      THROW_OR_ASSERT(err);
+    }
+
+    mlir::Value cst = exprGen.buildConstant(
+        lcst.value(), getElementType(outTensor), loc(lcst.range()));
+
+    builder.create<mlir::linalg::FillOp>(loc(lcst.range()), outTensor, cst);
+  }
+
   // Tries to build a linalg structured operations from c and the
   // provided inputs / outputs.
   bool tryBuildSpecializedLinalgOp(
       const lang::Comprehension &c,
       llvm::ArrayRef<mlir::edsc::StructuredIndexed> inputs,
       llvm::ArrayRef<mlir::edsc::StructuredIndexed> outputs) {
+
+    if (pattern::isConstantInitialization(c)) {
+      buildFillOp(lang::Const(c.rhs()), outputs[0]);
+      return true;
+    }
+
     return tryBuildSpecializedLinalgOp<mlir::linalg::MatmulOp, 2,
                                        pattern::isMatmulComprehension>(
                c, inputs, outputs) ||
