@@ -10,19 +10,29 @@ namespace pattern {
 // has the pattern
 //
 //   C(i) +=! A(i, k) * B(k) or
-//   C(i) +=! B(k) * A(i, k)
+//   C(i) +=! B(k) * A(i, k) or
+//   C(i) += A(i, k) * B(k) or
+//   C(i) += B(k) * A(i, k)
 //
 // Returns true if the pattern matches, otherwise false. If
 // inverse_operands is non-NULL, its value will be set to false if the
 // first pattern matches or true if the second pattern matches. If no
 // pattern matches, inverse_operands is left untouched.
-static inline bool isMatvecComprehension(const lang::Comprehension &c,
-                                         size_t (*canonical_order)[2] = NULL) {
+//
+// The output parameter definit indicates whether the output matrix is
+// default initialized with zeros
+static inline bool
+isMatvecComprehensionEx(const lang::Comprehension &c, bool *definit,
+                        size_t (*canonical_order)[2] = NULL) {
   lang::ListView<lang::Ident> lhsIdents = c.indices();
 
   // Ensure this is a sum of products
-  if (c.assignment()->kind() != lang::TK_PLUS_EQ_B || c.rhs()->kind() != '*')
+  if ((c.assignment()->kind() != lang::TK_PLUS_EQ_B &&
+       c.assignment()->kind() != lang::TK_PLUS_EQ) ||
+      c.rhs()->kind() != '*')
     return false;
+
+  *definit = (c.assignment()->kind() == lang::TK_PLUS_EQ_B);
 
   // Ensure that the output is a vector
   if (lhsIdents.size() != 1)
@@ -94,23 +104,52 @@ static inline bool isMatvecComprehension(const lang::Comprehension &c,
   return ret;
 }
 
+static inline bool isMatvecComprehension(const lang::Comprehension &c,
+                                         size_t (*canonical_order)[2] = NULL) {
+  bool definit;
+  if (!isMatvecComprehensionEx(c, &definit, canonical_order))
+    return false;
+
+  return !definit;
+}
+
+static inline bool
+isDefinitMatvecComprehension(const lang::Comprehension &c,
+                             size_t (*canonical_order)[2] = NULL) {
+  bool definit;
+  if (!isMatvecComprehensionEx(c, &definit, canonical_order))
+    return false;
+
+  return definit;
+}
+
 // Checks if a comprehension is a matrix multiplication, i.e., if it
 // has the pattern
 //
 //   C(i, j) +=! A(i, k) * B(k, j) or
-//   C(i, j) +=! B(k, j) * A(i, k)
+//   C(i, j) +=! B(k, j) * A(i, k) or
+//   C(i, j) += A(i, k) * B(k, j) or
+//   C(i, j) += B(k, j) * A(i, k)
 //
 // Returns true if the pattern matches, otherwise false. If
 // canonical_order is non-NULL, the indexes for the canonical order of
 // the input operands will be provided. If no pattern matches,
 // canonical_order is left untouched.
-static inline bool isMatmulComprehension(const lang::Comprehension &c,
-                                         size_t (*canonical_order)[2] = NULL) {
+//
+// The output parameter definit indicates whether the output vector is
+// default initialized with zeros
+static inline bool
+isMatmulComprehensionEx(const lang::Comprehension &c, bool *definit,
+                        size_t (*canonical_order)[2] = NULL) {
   lang::ListView<lang::Ident> lhsIdents = c.indices();
 
   // Ensure this is a sum of products
-  if (c.assignment()->kind() != lang::TK_PLUS_EQ_B || c.rhs()->kind() != '*')
+  if ((c.assignment()->kind() != lang::TK_PLUS_EQ_B &&
+       c.assignment()->kind() != lang::TK_PLUS_EQ) ||
+      c.rhs()->kind() != '*')
     return false;
+
+  *definit = (c.assignment()->kind() == lang::TK_PLUS_EQ_B);
 
   // Ensure that the output is a matrix
   if (lhsIdents.size() != 2)
@@ -177,6 +216,26 @@ static inline bool isMatmulComprehension(const lang::Comprehension &c,
 
   return false;
 }
+
+static inline bool isMatmulComprehension(const lang::Comprehension &c,
+                                         size_t (*canonical_order)[2] = NULL) {
+  bool definit;
+  if (!isMatmulComprehensionEx(c, &definit, canonical_order))
+    return false;
+
+  return !definit;
+}
+
+static inline bool
+isDefinitMatmulComprehension(const lang::Comprehension &c,
+                             size_t (*canonical_order)[2] = NULL) {
+  bool definit;
+  if (!isMatmulComprehensionEx(c, &definit, canonical_order))
+    return false;
+
+  return definit;
+}
+
 } // namespace pattern
 } // namespace teckyl
 

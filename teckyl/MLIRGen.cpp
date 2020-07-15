@@ -965,8 +965,14 @@ private:
     return tryBuildSpecializedLinalgOp<mlir::linalg::MatmulOp, 2,
                                        pattern::isMatmulComprehension>(
                c, inputs, outputs) ||
+           tryBuildSpecializedLinalgOp<mlir::linalg::MatmulOp, 2,
+                                       pattern::isDefinitMatmulComprehension>(
+               c, inputs, outputs) ||
            tryBuildSpecializedLinalgOp<mlir::linalg::MatvecOp, 2,
                                        pattern::isMatvecComprehension>(
+               c, inputs, outputs) ||
+           tryBuildSpecializedLinalgOp<mlir::linalg::MatvecOp, 2,
+                                       pattern::isDefinitMatvecComprehension>(
                c, inputs, outputs);
   }
 
