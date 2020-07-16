@@ -811,6 +811,18 @@ private:
             exprGen.buildExpr(langItBounds.at(index.name()).start());
         mlir::Value ub = exprGen.buildExpr(langItBounds.at(index.name()).end());
 
+        // Force conversion to index type (the constants above might
+        // well be integers if they are constants)
+        if (!lb.getType().isIndex()) {
+          lb = builder.create<mlir::IndexCastOp>(location,
+                                                 builder.getIndexType(), lb);
+        }
+
+        if (!ub.getType().isIndex()) {
+          ub = builder.create<mlir::IndexCastOp>(location,
+                                                 builder.getIndexType(), ub);
+        }
+
         offsets.push_back(lb);
 
         // lb and ub are of type index; convert to integer, subtract and
