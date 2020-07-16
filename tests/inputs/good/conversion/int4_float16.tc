@@ -1,0 +1,4 @@
+def mv(float16(M,K) A, float16(K) x) -> (float16(M) C)
+{
+  C(i) +=! 2i4 * A(i,k) * x(k) where i in 0:M, k in 0:K
+}

@@ -1,0 +1,4 @@
+def mv(int8(M,K) A, int8(K) x) -> (int8(M) C)
+{
+  C(i) +=! 2i2 * A(i,k) * x(k) where i in 0:M, k in 0:K
+}

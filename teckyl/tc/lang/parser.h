@@ -48,6 +48,10 @@ struct Parser {
       type = TK_FLOAT32;
     else if (suffix == "f64")
       type = TK_FLOAT64;
+    else if (suffix == "u2")
+      type = TK_UINT2;
+    else if (suffix == "u4")
+      type = TK_UINT4;
     else if (suffix == "u8")
       type = TK_UINT8;
     else if (suffix == "u16")
@@ -56,6 +60,10 @@ struct Parser {
       type = TK_UINT32;
     else if (suffix == "u64")
       type = TK_UINT64;
+    else if (suffix == "i2")
+      type = TK_INT2;
+    else if (suffix == "i4")
+      type = TK_INT4;
     else if (suffix == "i8")
       type = TK_INT8;
     else if (suffix == "i16")

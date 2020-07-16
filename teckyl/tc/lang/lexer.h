@@ -70,10 +70,14 @@ namespace lang {
   _(TK_MAX_EQ_B, "max_eq_b", "max=!")                                          \
                                                                                \
   _(TK_BOOL, "bool", "bool")                                                   \
+  _(TK_UINT2, "uint2", "uint2")                                                \
+  _(TK_UINT4, "uint4", "uint4")                                                \
   _(TK_UINT8, "uint8", "uint8")                                                \
   _(TK_UINT16, "uint16", "uint16")                                             \
   _(TK_UINT32, "uint32", "uint32")                                             \
   _(TK_UINT64, "uint64", "uint64")                                             \
+  _(TK_INT2, "int2", "int2")                                                   \
+  _(TK_INT4, "int4", "int4")                                                   \
   _(TK_INT8, "int8", "int8")                                                   \
   _(TK_INT16, "int16", "int16")                                                \
   _(TK_INT32, "int32", "int32")                                                \
@@ -213,8 +217,8 @@ struct SharedParserData {
     // the above check guarantees that endptr hasn't moved past the
     // NUL character.
     if (*endptr != '\0') {
-      static const char *suffixes[] = {"i8", "i16", "i32", "i64",
-                                       "u8", "u16", "u32", "u64",
+      static const char *suffixes[] = {"i2", "i4",  "i8",  "i16", "i32", "i64",
+                                       "u2", "u4",  "u8",  "u16", "u32", "u64",
                                        "z",  "f16", "f32", "f64"};
 
 #define ARRAY_SIZE(a) ((sizeof(a) / sizeof(a[0])))
@@ -334,10 +338,14 @@ struct SharedParserData {
   bool isScalarType(int kind) {
     switch (kind) {
     case TK_BOOL:
+    case TK_UINT2:
+    case TK_UINT4:
     case TK_UINT8:
     case TK_UINT16:
     case TK_UINT32:
     case TK_UINT64:
+    case TK_INT2:
+    case TK_INT4:
     case TK_INT8:
     case TK_INT16:
     case TK_INT32:
@@ -441,19 +449,21 @@ struct Token {
       std::string suffix = text().substr(idx);
 
       assert(suffix == "f16" || suffix == "f32" || suffix == "f64" ||
-             suffix == "u8" || suffix == "u16" || suffix == "u32" ||
-             suffix == "u64" || suffix == "i8" || suffix == "i16" ||
-             suffix == "i32" || suffix == "i64" || suffix == "z");
+             suffix == "u2" || suffix == "u4" || suffix == "u8" ||
+             suffix == "u16" || suffix == "u32" || suffix == "u64" ||
+             suffix == "i2" || suffix == "i4" || suffix == "i8" ||
+             suffix == "i16" || suffix == "i32" || suffix == "i64" ||
+             suffix == "z");
     } else {
       assert(idx == range.size());
     }
 
     return text().substr(0, idx);
   }
-  // Returns the suffix for the number literal (either "u8", "u16",
-  // "u32", "u64", "i8", "i16", "i32", "i64", "f16", "f32", "f64", "z"
-  // or the empty string "" if no suffix has been specified
-  // originally.
+  // Returns the suffix for the number literal (either "u2", "u4",
+  // "u8", "u16", "u32", "u64", "i2", "i4", "i8", "i16", "i32", "i64",
+  // "f16", "f32", "f64", "z" or the empty string "" if no suffix has
+  // been specified originally.
   std::string numSuffix() {
     assert(TK_NUMBER == kind);
     size_t idx;

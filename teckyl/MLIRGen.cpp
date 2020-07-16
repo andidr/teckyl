@@ -78,8 +78,8 @@ static inline unsigned int getMLIRIntTypeBits(mlir::Type &t) {
 }
 
 static inline bool isMLIRIntType(mlir::Type &t) {
-  return t.isInteger(8) || t.isInteger(16) || t.isInteger(32) ||
-         t.isInteger(64);
+  return t.isInteger(2) || t.isInteger(4) || t.isInteger(8) ||
+         t.isInteger(16) || t.isInteger(32) || t.isInteger(64);
 }
 
 using IteratorBoundsMap =
@@ -159,6 +159,10 @@ protected:
     case lang::TK_FLOAT32:
     case lang::TK_FLOAT64:
       return getFloatType(kind);
+    case lang::TK_INT2:
+      return builder.getIntegerType(2);
+    case lang::TK_INT4:
+      return builder.getIntegerType(4);
     case lang::TK_INT8:
       return builder.getIntegerType(8);
     case lang::TK_INT16:

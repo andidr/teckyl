@@ -42,10 +42,14 @@ struct TypeInfo {
     bits_ = b;                                                                 \
     break;
       TYPE_INFO_OPTION(TK_BOOL, UInt, 1)
+      TYPE_INFO_OPTION(TK_UINT2, UInt, 2)
+      TYPE_INFO_OPTION(TK_UINT4, UInt, 4)
       TYPE_INFO_OPTION(TK_UINT8, UInt, 8)
       TYPE_INFO_OPTION(TK_UINT16, UInt, 16)
       TYPE_INFO_OPTION(TK_UINT32, UInt, 32)
       TYPE_INFO_OPTION(TK_UINT64, UInt, 64)
+      TYPE_INFO_OPTION(TK_INT2, Int, 2)
+      TYPE_INFO_OPTION(TK_INT4, Int, 4)
       TYPE_INFO_OPTION(TK_INT8, Int, 8)
       TYPE_INFO_OPTION(TK_INT16, Int, 16)
       TYPE_INFO_OPTION(TK_INT32, Int, 32)
@@ -70,6 +74,10 @@ struct TypeInfo {
       switch (bits()) {
       case 1:
         return TK_BOOL;
+      case 2:
+        return TK_UINT2;
+      case 4:
+        return TK_UINT4;
       case 8:
         return TK_UINT8;
       case 16:
@@ -81,6 +89,10 @@ struct TypeInfo {
       }
     case Int:
       switch (bits()) {
+      case 2:
+        return TK_INT2;
+      case 4:
+        return TK_INT4;
       case 8:
         return TK_INT8;
       case 16:

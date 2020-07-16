@@ -1,0 +1,4 @@
+def mv(int16(M,K) A, int16(K) x) -> (int16(M) C)
+{
+  C(i) +=! 2i2 * A(i,k) * x(k) where i in 0:M, k in 0:K
+}

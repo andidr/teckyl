@@ -37,6 +37,8 @@ static bool mapRecursiveWhile(const lang::TreeRef &tree,
 
 static bool inline isSignedIntType(int kind) {
   switch (kind) {
+  case lang::TK_INT2:
+  case lang::TK_INT4:
   case lang::TK_INT8:
   case lang::TK_INT16:
   case lang::TK_INT32:
@@ -50,6 +52,8 @@ static bool inline isSignedIntType(int kind) {
 
 static inline bool isUnsignedIntType(int kind) {
   switch (kind) {
+  case lang::TK_UINT2:
+  case lang::TK_UINT4:
   case lang::TK_UINT8:
   case lang::TK_UINT16:
   case lang::TK_UINT32:

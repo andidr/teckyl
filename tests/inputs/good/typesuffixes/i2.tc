@@ -1,0 +1,4 @@
+def mv(int2(M,K) A, int2(K) x) -> (int2(M) C)
+{
+  C(i) +=! 2i2 * A(i,k) * x(k) where i in 0:M, k in 0:K
+}
