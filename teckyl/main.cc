@@ -48,6 +48,9 @@ static llvm::cl::opt<bool> specializeLinalgOps(
 std::string readFile(const std::string &filename) {
   std::ifstream ifs(filename);
 
+  if (!ifs.good())
+    THROW_OR_ASSERT(teckyl::Exception("Could not open file " + filename));
+
   return std::string((std::istreambuf_iterator<char>(ifs)),
                      std::istreambuf_iterator<char>());
 }
@@ -133,13 +136,12 @@ int main(int argc, char **argv) {
 
   llvm::cl::ParseCommandLineOptions(argc, argv, "teckyl frontend\n");
 
-  std::string source = readFile(inputFilename);
-
-  tcs = parse(source, inputFilename);
-
 #ifdef COMPILE_WITH_EXCEPTIONS
   try {
 #endif // COMPILE_WITH_EXCEPTIONS
+    std::string source = readFile(inputFilename);
+
+    tcs = parse(source, inputFilename);
 
     switch (emitAction) {
     case Action::DumpAST:
