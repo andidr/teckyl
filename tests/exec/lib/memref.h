@@ -4,17 +4,32 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-/* Data layout information for a 2d float memref */
-struct vec_f2d {
-	float *allocatedPtr;
-	float *alignedPtr;
-	int64_t offset;
-	int64_t sizes[2];
-	int64_t strides[2];
-};
+#define DECL_VECND_STRUCT(ndims, name, eltype)	\
+  struct name {					\
+    eltype *allocatedPtr;			\
+    eltype *alignedPtr;				\
+    int64_t offset;				\
+    int64_t sizes[ndims];			\
+    int64_t strides[ndims];			\
+  };
+
+#define DECL_VEC1D_STRUCT(name, eltype)	\
+  DECL_VECND_STRUCT(1, name, eltype)
+
+#define DECL_VEC2D_STRUCT(name, eltype) \
+  DECL_VECND_STRUCT(2, name, eltype)
 
 /* Generates a comma-separated list of arguments from the fields of a
- * 2d float memref */
+ * 1d memref */
+#define VEC1D_ARGS(v)                           \
+  (v)->allocatedPtr,                            \
+    (v)->alignedPtr,                            \
+    (v)->offset,                                \
+    (v)->sizes[0],                              \
+    (v)->strides[0]
+
+/* Generates a comma-separated list of arguments from the fields of a
+ * 2d memref */
 #define VEC2D_ARGS(v)                           \
   (v)->allocatedPtr,                            \
     (v)->alignedPtr,                            \
@@ -24,80 +39,160 @@ struct vec_f2d {
     (v)->strides[0],                            \
     (v)->strides[1]
 
-/* Allocates and initializes a 2d float memref. Returns 0 on success,
- * otherwise 1.
- */
-static inline int vec_f2d_alloc(struct vec_f2d* v, size_t n, size_t m)
-{
-	float* f;
+#define DECL_VEC1D_FUNCTIONS(name, eltype, format)			\
+  /* Allocates and initializes a 1d memref. Returns 0 on success,	\
+   * otherwise 1.							\
+   */									\
+  static inline int name##_alloc(struct name* v, size_t n)		\
+  {									\
+    eltype* f;								\
+									\
+    if(!(f = calloc(n, sizeof(eltype))))				\
+      return 1;								\
+									\
+    v->allocatedPtr = f;						\
+    v->alignedPtr = f;							\
+    v->offset = 0;							\
+    v->sizes[0] = n;							\
+    v->strides[0] = 1;							\
+									\
+    return 0;								\
+  }									\
+									\
+  /* Destroys a 1d memref */						\
+  static inline int name##_destroy(struct name* v)			\
+  {									\
+    free(v->allocatedPtr);						\
+  }									\
+									\
+  /* Returns the element at position `x` of a 1d memref `v` */		\
+  static inline eltype name##_get(const struct name* v, int64_t x)	\
+  {									\
+    return v->allocatedPtr[x];						\
+  }									\
+									\
+  /* Assigns `f` to the element at position `x` of a 1d			\
+   * memref `v`								\
+   */									\
+  static inline void name##_set(struct name* v, int64_t x, eltype f)	\
+  {									\
+    v->allocatedPtr[x] = f;						\
+  }									\
+									\
+  /* Compares the values of two 1d memrefs. Returns 1 if they are	\
+   * equal, otherwise 0.						\
+   */									\
+  static inline int name##_compare(const struct name* a,		\
+				   const struct name* b)		\
+  {									\
+    /* Compare shapes */						\
+    if(a->sizes[0] != b->sizes[0])					\
+      return 0;								\
+									\
+    /* Compare elements */						\
+    for(int64_t x = 0; x < a->sizes[1]; x++)				\
+      if(name##_get(a, x) != name##_get(b, x))				\
+	return 0;							\
+									\
+    return 1;								\
+  }									\
+									\
+  /* Dumps a 1d `v` to stdout. */					\
+  static inline void name##_dump(const struct name* v)			\
+  {									\
+    for(int64_t x = 0; x < v->sizes[0]; x++) {				\
+      printf(format "%s",						\
+	     v->allocatedPtr[x],					\
+	     x == v->sizes[0]-1 ? "" : " ");				\
+     }									\
+									\
+     puts("");								\
+  }
 
-	if(!(f = calloc(n*m, sizeof(float))))
-		return 1;
+#define DECL_VEC2D_FUNCTIONS(name, eltype, format)			\
+  /* Allocates and initializes a 2d memref. Returns 0 on success,	\
+   * otherwise 1.							\
+   */									\
+  static inline int name##_alloc(struct name* v, size_t n, size_t m)	\
+  {									\
+    eltype* f;								\
+									\
+    if(!(f = calloc(n*m, sizeof(eltype))))				\
+      return 1;								\
+									\
+    v->allocatedPtr = f;						\
+    v->alignedPtr = f;							\
+    v->offset = 0;							\
+    v->sizes[0] = n;							\
+    v->sizes[1] = m;							\
+    v->strides[0] = m;							\
+    v->strides[1] = 1;							\
+									\
+    return 0;								\
+  }									\
+									\
+  /* Destroys a 2d memref */						\
+  static inline int name##_destroy(struct name* v)			\
+  {									\
+    free(v->allocatedPtr);						\
+  }									\
+									\
+  /* Returns the element at position (`x`, `y`) of a 2d memref `v` */	\
+  static inline eltype name##_get(const struct name* v,			\
+				  int64_t x, int64_t y)			\
+  {									\
+    return *(v->allocatedPtr + y*v->sizes[1] + x);			\
+  }									\
+									\
+  /* Assigns `f` to the element at position (`x`, `y`) of a 2d		\
+   * memref `v`								\
+   */									\
+  static inline void name##_set(struct name* v, int64_t x, int64_t y,	\
+				eltype f)				\
+  {									\
+    *(v->allocatedPtr + y*v->sizes[1] + x) = f;				\
+  }									\
+									\
+  /* Compares the values of two 2d memrefs. Returns 1 if they are \
+   * equal, otherwise 0.						\
+   */									\
+  static inline int name##_compare(const struct name* a,		\
+				   const struct name* b)		\
+  {									\
+    /* Compare shapes */						\
+    if(a->sizes[0] != b->sizes[0] ||					\
+       a->sizes[1] != b->sizes[1])					\
+      {									\
+	return 0;							\
+      }									\
+									\
+    /* Compare elements */						\
+    for(int64_t y = 0; y < a->sizes[0]; y++)				\
+      for(int64_t x = 0; x < a->sizes[1]; x++)				\
+	if(name##_get(a, x, y) != name##_get(b, x, y))			\
+	  return 0;							\
+									\
+    return 1;								\
+  }									\
+									\
+  /* Dumps a 2d `v` to stdout. */					\
+  static inline void name##_dump(const struct name* v)			\
+  {									\
+    for(int64_t y = 0; y < v->sizes[0]; y++) {				\
+      for(int64_t x = 0; x < v->sizes[1]; x++) {			\
+	printf(format "%s",						\
+	       *(v->allocatedPtr + y*v->sizes[1] + x),			\
+	       x == v->sizes[1]-1 ? "" : " ");				\
+      }									\
+									\
+      puts("");								\
+    }									\
+  }
 
-	v->allocatedPtr = f;
-	v->alignedPtr = f;
-	v->offset = 0;
-	v->sizes[0] = n;
-	v->sizes[1] = m;
-	v->strides[0] = m;
-	v->strides[1] = 1;
+DECL_VEC1D_STRUCT(vec_f1d, float)
+DECL_VEC2D_STRUCT(vec_f2d, float)
 
-	return 0;
-}
-
-/* Destroys a 2d float memref */
-static inline int vec_f2d_destroy(struct vec_f2d* v)
-{
-	free(v->allocatedPtr);
-}
-
-/* Returns the element at position (`x`, `y`) of a 2d float memref `v` */
-static inline float vec_f2d_get(const struct vec_f2d* v, int64_t x, int64_t y)
-{
-	return *(v->allocatedPtr + y*v->sizes[1] + x);
-}
-
-/* Assigns `f` to the element at position (`x`, `y`) of a 2d float
- * memref `v`
- */
-static inline void vec_f2d_set(struct vec_f2d* v, int64_t x, int64_t y, float f)
-{
-	*(v->allocatedPtr + y*v->sizes[1] + x) = f;
-}
-
-/* Compares the values of two 2d float memrefs. Returns 1 if they are
- * equal, otherwise 0.
- */
-static inline int vec_f2d_compare(const struct vec_f2d* a, const struct vec_f2d* b)
-{
-	/* Compare shapes */
-	if(a->sizes[0] != b->sizes[0] ||
-	   a->sizes[1] != b->sizes[1])
-	{
-		return 0;
-	}
-
-	/* Compare elements */
-	for(int64_t y = 0; y < a->sizes[0]; y++)
-		for(int64_t x = 0; x < a->sizes[1]; x++)
-			if(vec_f2d_get(a, x, y) != vec_f2d_get(b, x, y))
-				return 0;
-
-	return 1;
-}
-
-/* Dumps a 2d float memref `v` to stdout. */
-static inline void vec_f2d_dump(const struct vec_f2d* v)
-{
-	for(int64_t y = 0; y < v->sizes[0]; y++) {
-		for(int64_t x = 0; x < v->sizes[1]; x++) {
-			printf("%f%s",
-			       *(v->allocatedPtr + y*v->sizes[1] + x),
-			       x == v->sizes[1]-1 ? "" : " ");
-		}
-
-		puts("");
-	}
-}
+DECL_VEC1D_FUNCTIONS(vec_f1d, float, "%f")
+DECL_VEC2D_FUNCTIONS(vec_f2d, float, "%f")
 
 #endif
