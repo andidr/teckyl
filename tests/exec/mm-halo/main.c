@@ -3,9 +3,9 @@
 #include "../lib/memref.h"
 
 /* Generated matrix multiplication function under test */
-extern void mm_halo(const float* a_allocatedptr, const float* a_alignedptr, int64_t a_offset, int64_t a_sizes0, int64_t a_sizes1, int64_t a_strides0, int64_t a_strides1,
-	       const float* b_allocatedptr, const float* b_alignedptr, int64_t b_offset, int64_t b_sizes0, int64_t b_sizes1, int64_t b_strides0, int64_t b_strides1,
-	       float* o_allocatedptr, float* o_alignedptr, int64_t o_offset, int64_t o_sizes0, int64_t o_sizes1, int64_t o_strides0, int64_t o_strides1);
+extern void mm_halo(DECL_VEC2D_FUNC_IN_ARGS(a, float),
+		    DECL_VEC2D_FUNC_IN_ARGS(b, float),
+		    DECL_VEC2D_FUNC_OUT_ARGS(o, float));
 
 /* Reference implementation of a matrix multiplication that only uses
  * the elements of a, b, and c which are not on the border.

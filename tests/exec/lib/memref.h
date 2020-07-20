@@ -39,6 +39,34 @@
     (v)->strides[0],                            \
     (v)->strides[1]
 
+#define DECL_VEC1D_FUNC_ARGS(prefix, eltype, cst)	     \
+  cst eltype* prefix##_allocatedPtr,			     \
+    cst eltype* prefix##_alignedPtr,			     \
+    int64_t prefix##_offset,				     \
+    int64_t prefix##_size0,				     \
+    int64_t prefix##_stride0
+
+#define DECL_VEC1D_FUNC_IN_ARGS(prefix, eltype)	\
+  DECL_VEC1D_FUNC_ARGS(prefix, eltype, const)
+
+#define DECL_VEC1D_FUNC_OUT_ARGS(prefix, eltype) \
+  DECL_VEC1D_FUNC_ARGS(prefix, eltype, )
+
+#define DECL_VEC2D_FUNC_ARGS(prefix, eltype, cst)	     \
+  cst eltype* prefix##_allocatedPtr,			     \
+    cst eltype* prefix##_alignedPtr,			     \
+    int64_t prefix##_offset,				     \
+    int64_t prefix##_size0,				     \
+    int64_t prefix##_size1,				     \
+    int64_t prefix##_stride0,				     \
+    int64_t prefix##_stride1
+
+#define DECL_VEC2D_FUNC_IN_ARGS(prefix, eltype)	\
+  DECL_VEC2D_FUNC_ARGS(prefix, eltype, const)
+
+#define DECL_VEC2D_FUNC_OUT_ARGS(prefix, eltype) \
+  DECL_VEC2D_FUNC_ARGS(prefix, eltype, )
+
 #define DECL_VEC1D_FUNCTIONS(name, eltype, format)			\
   /* Allocates and initializes a 1d memref. Returns 0 on success,	\
    * otherwise 1.							\
