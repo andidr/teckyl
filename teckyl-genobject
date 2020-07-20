@@ -52,6 +52,7 @@ OUTFILE=""
 DEBUGSYMS=""
 MODE="object"
 BODY_OP="scf.for"
+SPECIALIZE_LINALG_OPS="unspecified"
 
 LLC=${LLC-llc}
 MLIR_OPT=${MLIR_OPT-mlir-opt}
@@ -84,7 +85,6 @@ do
 	    ;;
 	--mode=*)
 	    MODE="${1#--mode=}"
-	    shift
 	    ;;
 	-m*)
 	    MODE="${1#-m}"
@@ -97,6 +97,9 @@ do
 	    ;;
 	-O[0123])
 	    AS_OPTS+=("$1")
+	    ;;
+	--specialize-linalg-ops)
+	    SPECIALIZE_LINALG_OPS="true"
 	    ;;
 	-*)
 	    die "Unknown option '$1'"
@@ -111,6 +114,17 @@ do
 done
 
 TECKYL_OPTS+=("--body-op=$BODY_OP")
+
+if [ $BODY_OP = "linalg.generic" -a \
+     $SPECIALIZE_LINALG_OPS = "unspecified" ]
+then
+    SPECIALIZE_LINALG_OPS="true"
+fi
+
+if [ $SPECIALIZE_LINALG_OPS = "true" ]
+then
+    TECKYL_OPTS+=("--specialize-linalg-ops")
+fi
 
 case "$MODE" in
     asm|llvmir|object)
