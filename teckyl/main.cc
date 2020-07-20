@@ -69,14 +69,14 @@ std::map<std::string, lang::Def> parse(const std::string &tc,
   return parsed;
 }
 
-// Dumps the AST for a set of kernels to stderr
+// Dumps the AST for a set of kernels to stdout
 void dumpAST(const std::map<std::string, lang::Def> &tcs) {
   for (const auto &res : tcs)
-    std::cerr << res.second << std::endl;
+    std::cout << res.second << std::endl;
 }
 
 // Dumps the inference results from the semantic analysis for a set of
-// kernels to stderr
+// kernels to stdout
 void dumpInference(const std::map<std::string, lang::Def> &tcs) {
   tc::CompilerOptions co;
   co.printRanges = true;
@@ -88,7 +88,7 @@ void dumpInference(const std::map<std::string, lang::Def> &tcs) {
 }
 
 // Generates an MLIR representation for each TC kernel and dumps a
-// textual reprsentation to stderr.
+// textual representation to stdout.
 //
 // Returns 0 on success or 1 in case of an error.
 void dumpMLIR(const std::map<std::string, lang::Def> &tcs) {
@@ -122,7 +122,7 @@ void dumpMLIR(const std::map<std::string, lang::Def> &tcs) {
     module.push_back(f);
   }
 
-  module.dump();
+  module.print(llvm::outs());
 
   if (mlir::failed(mlir::verify(module)))
     llvm_unreachable("Module verification error");
