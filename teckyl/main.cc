@@ -14,20 +14,30 @@
 #include <mlir/Dialect/Linalg/IR/LinalgOps.h>
 #include "mlir/Dialect/SCF/SCF.h"
 
+#include "teckyl/HeaderGen.h"
 #include "teckyl/MLIRGen.h"
 
 // Commandline options
 static llvm::cl::opt<std::string>
     inputFilename(llvm::cl::Positional, llvm::cl::desc("<input file>"),
                   llvm::cl::init("-"), llvm::cl::value_desc("filename"));
-enum Action { None, DumpAST, DumpMLIR, DumpInference };
+enum Action { None, DumpAST, DumpMLIR, DumpHeader, DumpInference };
 
 static llvm::cl::opt<enum Action> emitAction(
     "emit", llvm::cl::desc("Select the kind of output desired"),
     llvm::cl::values(clEnumValN(DumpAST, "ast", "output the AST dump")),
     llvm::cl::values(clEnumValN(DumpMLIR, "mlir", "output the MLIR dump")),
+    llvm::cl::values(clEnumValN(
+        DumpHeader, "header",
+        "Output a C header file with signatures for generated functions")),
     llvm::cl::values(clEnumValN(DumpInference, "inference",
                                 "output inference results")));
+
+static llvm::cl::opt<std::string> includeGuard(
+    "include-guard",
+    llvm::cl::desc(
+        "Header include guard used for protection againstdouble inclusion"),
+    llvm::cl::init("FILE_GENERATED_BY_TECKYL"), llvm::cl::value_desc("symbol"));
 
 static llvm::cl::opt<teckyl::MLIRGenOptions::BodyOp> bodyOp(
     "body-op",
@@ -149,6 +159,9 @@ int main(int argc, char **argv) {
       break;
     case Action::DumpMLIR:
       dumpMLIR(tcs);
+      break;
+    case Action::DumpHeader:
+      std::cout << teckyl::genHeader(tcs, includeGuard);
       break;
     case Action::DumpInference:
       dumpInference(tcs);
