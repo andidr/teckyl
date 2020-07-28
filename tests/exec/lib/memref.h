@@ -275,8 +275,14 @@ static inline void memref_2d_dump_metainfo(DECL_VEC2D_FUNC_ARGS(m, void, const))
     }									\
   }
 
+DECL_VEC1D_STRUCT(vec_ui81d, uint8_t)
+DECL_VEC2D_STRUCT(vec_ui82d, uint8_t)
+
 DECL_VEC1D_STRUCT(vec_f1d, float)
 DECL_VEC2D_STRUCT(vec_f2d, float)
+
+DECL_VEC1D_FUNCTIONS(vec_ui81d, uint8_t, PRIu8)
+DECL_VEC2D_FUNCTIONS(vec_ui82d, uint8_t, PRIu8)
 
 DECL_VEC1D_FUNCTIONS(vec_f1d, float, "%f")
 DECL_VEC2D_FUNCTIONS(vec_f2d, float, "%f")
