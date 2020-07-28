@@ -28,6 +28,15 @@
     (v)->sizes[0],                              \
     (v)->strides[0]
 
+/* Forwards all arguments declared with DECL_VEC1D_FUNC_ARGS to
+ * another function */
+#define VEC1D_FWD_ARGS(prefix)			    \
+  prefix##_allocatedPtr,                            \
+    prefix##_alignedPtr,                            \
+    prefix##_offset,                                \
+    prefix##_size0,				    \
+    prefix##_stride0
+
 /* Generates a comma-separated list of arguments from the fields of a
  * 2d memref */
 #define VEC2D_ARGS(v)                           \
@@ -38,6 +47,17 @@
     (v)->sizes[1],                              \
     (v)->strides[0],                            \
     (v)->strides[1]
+
+/* Forwards all arguments declared with DECL_VEC2D_FUNC_ARGS to
+ * another function */
+#define VEC2D_FWD_ARGS(prefix)			    \
+  prefix##_allocatedPtr,                            \
+    prefix##_alignedPtr,                            \
+    prefix##_offset,                                \
+    prefix##_size0,				    \
+    prefix##_size1,				    \
+    prefix##_stride0,				    \
+    prefix##_stride1
 
 #define DECL_VEC1D_FUNC_ARGS(prefix, eltype, cst)	     \
   cst eltype* prefix##_allocatedPtr,			     \
