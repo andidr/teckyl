@@ -1,7 +1,9 @@
 #ifndef MEMREF_H
 #define MEMREF_H
 
+#include <inttypes.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #define DECL_VECND_STRUCT(ndims, name, eltype)	\
@@ -87,6 +89,22 @@
 #define DECL_VEC2D_FUNC_OUT_ARGS(prefix, eltype) \
   DECL_VEC2D_FUNC_ARGS(prefix, eltype, )
 
+/* Dumps the meta-information of a 1d memref to stdout. */
+static inline void memref_1d_dump_metainfo(DECL_VEC1D_FUNC_ARGS(m, void, const))
+{
+  printf("1d memref:\n"
+	 "  allocatedPtr: %p\n"
+	 "  alignedPtr: %p\n"
+	 "  offset: %" PRIu64 "\n"
+	 "  size0: %" PRIu64 "\n"
+	 "  stride0: %" PRIu64 "\n",
+	 m_allocatedPtr,
+	 m_alignedPtr,
+	 m_offset,
+	 m_size0,
+	 m_stride0);
+}
+
 #define DECL_VEC1D_FUNCTIONS(name, eltype, format)			\
   /* Allocates and initializes a 1d memref. Returns 0 on success,	\
    * otherwise 1.							\
@@ -156,6 +174,26 @@
 									\
      puts("");								\
   }
+
+/* Dumps the meta-information of a 2d memref to stdout. */
+static inline void memref_2d_dump_metainfo(DECL_VEC2D_FUNC_ARGS(m, void, const))
+{
+  printf("2d memref:\n"
+	 "  allocatedPtr: %p\n"
+	 "  alignedPtr: %p\n"
+	 "  offset: %" PRIu64 "\n"
+	 "  size0: %" PRIu64 "\n"
+	 "  size1: %" PRIu64 "\n"
+	 "  stride0: %" PRIu64 "\n"
+	 "  stride1: %" PRIu64 "\n",
+	 m_allocatedPtr,
+	 m_alignedPtr,
+	 m_offset,
+	 m_size0,
+	 m_size1,
+	 m_stride0,
+	 m_stride1);
+}
 
 #define DECL_VEC2D_FUNCTIONS(name, eltype, format)			\
   /* Allocates and initializes a 2d memref. Returns 0 on success,	\
