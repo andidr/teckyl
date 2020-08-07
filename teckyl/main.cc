@@ -174,6 +174,9 @@ int main(int argc, char **argv) {
   } catch (teckyl::Exception &e) {
     std::cerr << "Error: " << e.getMessage() << std::endl;
     return 1;
+  } catch (lang::ErrorReport &r) {
+    std::cerr << "Error: " << r.what() << std::endl;
+    return 1;
   } catch (...) {
     std::cerr << "An unknown error has occured." << std::endl;
     return 1;
