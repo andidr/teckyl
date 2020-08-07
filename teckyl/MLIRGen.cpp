@@ -39,7 +39,7 @@ static const char *getTypeAsString(mlir::Type t) {
   llvm_unreachable("Cannot determine name for type");
 }
 
-static inline bool isMLIRFloatType(mlir::Type &t) {
+static inline bool isMLIRFloatType(mlir::Type t) {
   return t.isF16() || t.isF32() || t.isF64();
 }
 
@@ -77,7 +77,7 @@ static inline unsigned int getMLIRIntTypeBits(mlir::Type &t) {
   llvm_unreachable("Not an integer type");
 }
 
-static inline bool isMLIRIntType(mlir::Type &t) {
+static inline bool isMLIRIntType(mlir::Type t) {
   return t.isInteger(2) || t.isInteger(4) || t.isInteger(8) ||
          t.isInteger(16) || t.isInteger(32) || t.isInteger(64);
 }
@@ -508,6 +508,85 @@ public:
     return ret;
   }
 
+  mlir::Value buildTernaryExpression(const lang::TreeRef &t) {
+    mlir::FileLineColLoc location = loc(t->range());
+
+    mlir::Value condition = buildExpr(t->tree(0));
+    mlir::Value truePart = buildExpr(t->tree(1));
+    mlir::Value falsePart = buildExpr(t->tree(2));
+
+    return builder.create<mlir::SelectOp>(location, condition, truePart,
+                                          falsePart);
+  }
+
+  mlir::Value buildCmpExpression(const lang::TreeRef &t) {
+    mlir::Value left = buildExpr(t->tree(0));
+    mlir::Value right = buildExpr(t->tree(1));
+
+    mlir::FileLineColLoc location = loc(t->range());
+
+    if (!alignTypes(builder, left, right, location)) {
+      std::stringstream ss;
+
+      ss << "The types of the operands for '" << t->kind()
+         << "' are incompatible: "
+         << "cannot convert " << getTypeAsString(left.getType()) << " to "
+         << getTypeAsString(right.getType());
+
+      mlirgen::SourceException err(location, ss.str());
+      THROW_OR_ASSERT(err);
+    }
+
+    if (isMLIRFloatType(left.getType())) {
+      switch (t->kind()) {
+      case '<':
+        return builder.create<mlir::CmpFOp>(location, mlir::CmpFPredicate::OLT,
+                                            left, right);
+      case lang::TK_LE:
+        return builder.create<mlir::CmpFOp>(location, mlir::CmpFPredicate::OLE,
+                                            left, right);
+      case '>':
+        return builder.create<mlir::CmpFOp>(location, mlir::CmpFPredicate::OGT,
+                                            left, right);
+      case lang::TK_GE:
+        return builder.create<mlir::CmpFOp>(location, mlir::CmpFPredicate::OGE,
+                                            left, right);
+      case lang::TK_EQ:
+        return builder.create<mlir::CmpFOp>(location, mlir::CmpFPredicate::OEQ,
+                                            left, right);
+      }
+    } else if (isMLIRIntType(left.getType())) {
+      switch (t->kind()) {
+      case '<':
+        return builder.create<mlir::CmpIOp>(location, mlir::CmpIPredicate::slt,
+                                            left, right);
+      case lang::TK_LE:
+        return builder.create<mlir::CmpIOp>(location, mlir::CmpIPredicate::sle,
+                                            left, right);
+      case '>':
+        return builder.create<mlir::CmpIOp>(location, mlir::CmpIPredicate::sgt,
+                                            left, right);
+      case lang::TK_GE:
+        return builder.create<mlir::CmpIOp>(location, mlir::CmpIPredicate::sge,
+                                            left, right);
+      case lang::TK_EQ:
+        return builder.create<mlir::CmpIOp>(location, mlir::CmpIPredicate::eq,
+                                            left, right);
+      }
+
+    } else {
+      std::stringstream ss;
+
+      ss << "Unsupported type " << getTypeAsString(left.getType())
+         << " for comparisons";
+
+      mlirgen::SourceException err(location, ss.str());
+      THROW_OR_ASSERT(err);
+    }
+
+    return mlir::Value{};
+  }
+
   // Translates a TC expression into an MLIR expression
   virtual mlir::Value buildExpr(const lang::TreeRef &t) {
     switch (t->kind()) {
@@ -519,6 +598,14 @@ public:
       return buildBinaryExpr<mlir::MulFOp, mlir::MulIOp>(t);
     case '/':
       return buildBinaryExpr<mlir::DivFOp, mlir::SignedDivIOp>(t);
+    case '?':
+      return buildTernaryExpression(t);
+    case '<':
+    case '>':
+    case lang::TK_LE:
+    case lang::TK_GE:
+    case lang::TK_EQ:
+      return buildCmpExpression(t);
     case lang::TK_NUMBER:
     case lang::TK_CONST:
       return buildConstant(lang::Const(t));

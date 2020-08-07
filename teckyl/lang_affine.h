@@ -121,7 +121,13 @@ bool hasNonAffineIndexing(const lang::TreeRef &e,
   case '+':
   case '-':
   case '*':
-  case '/': {
+  case '/':
+  case '?':
+  case '>':
+  case '<':
+  case lang::TK_GE:
+  case lang::TK_LE:
+  case lang::TK_EQ: {
     for (const lang::TreeRef &child : e->trees())
       if (hasNonAffineIndexing(child, syms))
         return true;
